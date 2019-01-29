@@ -1,8 +1,9 @@
-#!/usr/bin/env Rscript
 ######################
 ###Define libraries###
 ######################
 
+# conda only provides some of this.  we could also wrap these in a try/catch
+# and handle package installs here.
 library(magrittr,   warn.conflicts = FALSE, quietly = TRUE)
 library(dplyr,      warn.conflicts = FALSE, quietly = TRUE)
 # data.table prints a status line unless we turn it off
