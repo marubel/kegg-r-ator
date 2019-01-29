@@ -1,0 +1,13 @@
+name: kegg-r-ator
+channels:
+  - bioconda
+  - r
+  - defaults
+  - conda-forge
+dependencies:
+  - snakemake
+  - python=3.6
+  - rpy2
+  - r
+  - r-dbplyr
+  - r-magrittr
