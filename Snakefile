@@ -14,7 +14,7 @@ M8 = DATA_ROOT.glob('*.m8') # full path objects for all .m8 files
 SAMPLES = [p.stem for p in M8] # sample names, figured out from .m8 files
 
 rule all_kegg_to_ko:
-    input: expand("KO_kegg_df_{sample}.tsv", sample = SAMPLES)
+    input: expand("ko/KO_kegg_df_{sample}.tsv", sample = SAMPLES)
 
 # The R function from snakemake.utils allows R code inline as described here:
 # https://snakemake.readthedocs.io/en/v3.11.0/snakefiles/utils.html#scripting-with-r
@@ -33,10 +33,9 @@ rule all_kegg_to_ko:
 # function.
 rule kegg_to_ko:
     output:
-        tsv = "KO_kegg_df_{sample}.tsv"
+        tsv = "ko/KO_kegg_df_{sample}.tsv"
     input:
-        #sample = str(DATA_ROOT / "{sample}.m8"),
-        sample = "{sample}.dedup.m8",
+        sample = "deduplicated/{sample}.m8",
         ko_mapping_file_fp = str(METADATA_ROOT / "ko_genes.list")
     run: R("""
             source("kegg-r-ator.R")
@@ -50,7 +49,7 @@ rule kegg_to_ko:
 # Assumes original sort order, with the best BLAST result first for each
 # qseqid, is preserved.
 rule deduplicate_m8:
-    output: tsv = "{sample}.dedup.m8"
+    output: tsv = "deduplicated/{sample}.m8"
     input: tsv = str(DATA_ROOT / "{sample}.m8")
     # https://stackoverflow.com/a/1916188
     # This is faster than the answer using sort, but even more importantly,
