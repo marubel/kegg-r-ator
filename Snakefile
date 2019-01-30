@@ -1,12 +1,19 @@
+from pathlib import Path
 from snakemake.utils import R
 
 # This sort of thing can be split off into a configuration file for maximum
 # configurableness.  But this is fine for now.
-DATA_ROOT = "/media/lorax/users/marubel/CM_KEGG"
+DATA_ROOT = Path("/media/lorax/users/marubel/CM_KEGG")
+
+M8 = DATA_ROOT.glob('*.m8') # full path objects for all .m8 files
+SAMPLES = [p.stem for p in M8] # sample names, figured out from .m8 files
 
 # A small example for now.
-rule all:
+rule example:
     input: "KO_kegg_df_test.tsv"
+
+rule all_kegg_to_ko:
+    input: expand("KO_kegg_df_{sample}.tsv", sample = SAMPLES)
 
 # The R function from snakemake.utils allows R code inline as described here:
 # https://snakemake.readthedocs.io/en/v3.11.0/snakefiles/utils.html#scripting-with-r
@@ -21,13 +28,15 @@ rule all:
 #  * You still need to quote things like "{input.sample}" since R will see
 #    those things as literal text
 
+# Use the (much smaller) deduplicated m8 files as input to the KEGG_to_ko R
+# function.
 rule kegg_to_ko:
     output:
         tsv = "KO_kegg_df_{sample}.tsv"
     input:
-        #sample = DATA_ROOT + "/{sample}.m8",
-        sample = "{sample}.m8",
-        ko_mapping_file_fp = DATA_ROOT + "/ko_genes.list"
+        #sample = str(DATA_ROOT / "{sample}.m8"),
+        sample = "{sample}.dedup.m8",
+        ko_mapping_file_fp = str(DATA_ROOT / "ko_genes.list")
     run: R("""
             source("kegg-r-ator.R")
             KEGG_to_ko(
@@ -36,7 +45,18 @@ rule kegg_to_ko:
               "{output.tsv}")
             """)
 
+# Take only the first line in the input file for each qseqid (first field).
+# Assumes original sort order, with the best BLAST result first for each
+# qseqid, is preserved.
+rule deduplicate_m8:
+    output: tsv = "{sample}.dedup.m8"
+    input: tsv = str(DATA_ROOT / "{sample}.m8")
+    # https://stackoverflow.com/a/1916188
+    # This is faster than the answer using sort, but even more importantly,
+    # uses way less RAM.
+    shell: "awk '!_[$1]++' < {input} > {output}"
+
 rule test_m8:
     output: tsv = "test.m8"
-    input: tsv = DATA_ROOT + "/D0041_1.m8"
+    input: tsv = str(DATA_ROOT / "D0041_1.m8")
     shell: "head {input.tsv} > {output.tsv}"
