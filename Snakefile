@@ -13,10 +13,6 @@ if not DATA_ROOT.exists():
 M8 = DATA_ROOT.glob('*.m8') # full path objects for all .m8 files
 SAMPLES = [p.stem for p in M8] # sample names, figured out from .m8 files
 
-# A small example for now.
-rule example:
-    input: "KO_kegg_df_test.tsv"
-
 rule all_kegg_to_ko:
     input: expand("KO_kegg_df_{sample}.tsv", sample = SAMPLES)
 
@@ -60,8 +56,3 @@ rule deduplicate_m8:
     # This is faster than the answer using sort, but even more importantly,
     # uses way less RAM.
     shell: "awk '!_[$1]++' < {input} > {output}"
-
-rule test_m8:
-    output: tsv = "test.m8"
-    input: tsv = str(DATA_ROOT / "D0041_1.m8")
-    shell: "head {input.tsv} > {output.tsv}"
