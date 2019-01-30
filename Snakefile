@@ -4,6 +4,11 @@ from snakemake.utils import R
 # This sort of thing can be split off into a configuration file for maximum
 # configurableness.  But this is fine for now.
 DATA_ROOT = Path("/media/lorax/users/marubel/CM_KEGG")
+METADATA_ROOT = DATA_ROOT
+if not DATA_ROOT.exists():
+    DATA_ROOT = Path("/home/rubel/01_CameroonShotgun/sunbeam_output/mapping/sbx_gene_family/species_prokaryotes")
+    METADATA_ROOT = Path("/home/rubel/05_KEGG")
+
 
 M8 = DATA_ROOT.glob('*.m8') # full path objects for all .m8 files
 SAMPLES = [p.stem for p in M8] # sample names, figured out from .m8 files
@@ -36,7 +41,7 @@ rule kegg_to_ko:
     input:
         #sample = str(DATA_ROOT / "{sample}.m8"),
         sample = "{sample}.dedup.m8",
-        ko_mapping_file_fp = str(DATA_ROOT / "ko_genes.list")
+        ko_mapping_file_fp = str(METADATA_ROOT / "ko_genes.list")
     run: R("""
             source("kegg-r-ator.R")
             KEGG_to_ko(
