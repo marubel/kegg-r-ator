@@ -6,6 +6,8 @@
 # and handle package installs here.
 library(magrittr,   warn.conflicts = FALSE, quietly = TRUE)
 library(dplyr,      warn.conflicts = FALSE, quietly = TRUE)
+library(readr,      warn.conflicts = FALSE, quietly = TRUE)
+library(stringr,    warn.conflicts = FALSE, quietly = TRUE)
 # data.table prints a status line unless we turn it off
 suppressPackageStartupMessages(library(data.table))
 
@@ -136,14 +138,14 @@ ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_ti
 ############################
 ###ko_to_modules function###
 ############################
-ko_to_modules <- function(module_names, KO_kegg_df_fp, ko_module_fp, out_path) {
+ko_to_modules <- function(map_title_fp, KO_kegg_df_fp, module_parsed_fp, ko_enzyme_fp, ko_module_fp, out_path) {
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
   
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
 
   kegg_modules <- ko_module_fp %>% 
     read_tsv(col_names = c("ko_gene_id", "ModuleID")) %>%
-    left_join(module_names, by="ModuleID") %>%
+    left_join(ko_constants$module_names, by="ModuleID") %>%
     group_by(ko_gene_id) %>%
     mutate(Weight = 1 / n()) %>%
     ungroup()
@@ -161,12 +163,12 @@ ko_to_modules <- function(module_names, KO_kegg_df_fp, ko_module_fp, out_path) {
 ############################
 ###ko_to_enzymes function###
 ############################ 
-ko_to_enzymes <- function(kegg_enzymes, KO_kegg_df_fp, ko_enzyme_fp, out_path){
+ko_to_enzymes <- function(KO_kegg_df_fp, map_title_fp, module_parsed_fp, ko_enzyme_fp, out_path){
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
 
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
 
-  kegg_enzymes <- kegg_enzymes %>%
+  kegg_enzymes <- ko_constants$kegg_enzymes %>%
     group_by(ko_gene_id) %>%
     mutate(Weight = 1 / n()) %>%
     ungroup()
@@ -177,5 +179,5 @@ ko_to_enzymes <- function(kegg_enzymes, KO_kegg_df_fp, ko_enzyme_fp, out_path){
     mutate(weighted_kegg_enzymes = Weight*num_ko) %>%
     ungroup() 
 	
-  write.table(ko_kegg_pathway, file=out_path, sep='\t', quote=F, row.names = F)
+  write.table(ko_kegg_enzyme, file=out_path, sep='\t', quote=F, row.names = F)
 }
