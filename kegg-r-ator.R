@@ -110,7 +110,7 @@ KEGG_to_ko <- function(filepath, ko_mapping_file_fp, outfile, plots=FALSE) {
 ##############################
 ####ko_to_pathways function###
 ##############################
-ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_title_fp, out_path) { 
+ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_title_fp, ko_pathway_fp, out_path) { 
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
 
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
