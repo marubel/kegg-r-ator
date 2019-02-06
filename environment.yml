@@ -11,3 +11,5 @@ dependencies:
   - r
   - r-dbplyr
   - r-magrittr
+  - r-readr
+  - r-stringr

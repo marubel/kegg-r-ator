@@ -5,7 +5,10 @@
 # conda only provides some of this.  we could also wrap these in a try/catch
 # and handle package installs here.
 library(magrittr,   warn.conflicts = FALSE, quietly = TRUE)
+library(plyr,       warn.conflicts = FALSE, quietly = TRUE)
 library(dplyr,      warn.conflicts = FALSE, quietly = TRUE)
+library(readr,      warn.conflicts = FALSE, quietly = TRUE)
+library(stringr,    warn.conflicts = FALSE, quietly = TRUE)
 # data.table prints a status line unless we turn it off
 suppressPackageStartupMessages(library(data.table))
 
@@ -110,7 +113,7 @@ KEGG_to_ko <- function(filepath, ko_mapping_file_fp, outfile, plots=FALSE) {
 ##############################
 ####ko_to_pathways function###
 ##############################
-ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_title_fp, out_path) { 
+ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_title_fp, ko_pathway_fp, out_path) { 
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
 
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
@@ -136,14 +139,14 @@ ko_to_pathways <- function(module_parsed_fp, ko_enzyme_fp, KO_kegg_df_fp, map_ti
 ############################
 ###ko_to_modules function###
 ############################
-ko_to_modules <- function(module_names, KO_kegg_df_fp, ko_module_fp, out_path) {
+ko_to_modules <- function(map_title_fp, KO_kegg_df_fp, module_parsed_fp, ko_enzyme_fp, ko_module_fp, out_path) {
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
   
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
 
   kegg_modules <- ko_module_fp %>% 
     read_tsv(col_names = c("ko_gene_id", "ModuleID")) %>%
-    left_join(module_names, by="ModuleID") %>%
+    left_join(ko_constants$module_names, by="ModuleID") %>%
     group_by(ko_gene_id) %>%
     mutate(Weight = 1 / n()) %>%
     ungroup()
@@ -161,12 +164,12 @@ ko_to_modules <- function(module_names, KO_kegg_df_fp, ko_module_fp, out_path) {
 ############################
 ###ko_to_enzymes function###
 ############################ 
-ko_to_enzymes <- function(kegg_enzymes, KO_kegg_df_fp, ko_enzyme_fp, out_path){
+ko_to_enzymes <- function(KO_kegg_df_fp, map_title_fp, module_parsed_fp, ko_enzyme_fp, out_path){
   ko_constants <- ko_format_constants(map_title_fp, module_parsed_fp, ko_enzyme_fp) 
 
   KO_kegg_df <- read_tsv(KO_kegg_df_fp)
 
-  kegg_enzymes <- kegg_enzymes %>%
+  kegg_enzymes <- ko_constants$kegg_enzymes %>%
     group_by(ko_gene_id) %>%
     mutate(Weight = 1 / n()) %>%
     ungroup()
@@ -177,5 +180,98 @@ ko_to_enzymes <- function(kegg_enzymes, KO_kegg_df_fp, ko_enzyme_fp, out_path){
     mutate(weighted_kegg_enzymes = Weight*num_ko) %>%
     ungroup() 
 	
-  write.table(ko_kegg_pathway, file=out_path, sep='\t', quote=F, row.names = F)
+  write.table(ko_kegg_enzyme, file=out_path, sep='\t', quote=F, row.names = F)
 }
+
+#######################################
+###Aggregate ko_to_pathways function###
+#######################################
+# helper func to rename and select only the weighted abundance 
+# and ID cols
+rename_select_summarise_pathways <- function(df) {
+    sampid <- df$sample[1]
+    df <- dplyr::select(df, c("PathwayID", "weighted_kegg_pathways")) %>%
+      group_by(PathwayID) %>% 
+      summarise(total_weighted = sum(weighted_kegg_pathways)) %>% 
+      dplyr::select(c("PathwayID", "total_weighted"))
+    dplyr::rename(df, !!sampid:=total_weighted)
+}
+
+agg_to_pathways=function(paths, out_path, matrix_path) {
+    pathwaylist= lapply(paths, function (x) fread(file = x, sep="\t", header = TRUE, showProgress=FALSE))
+    #outdf = data.frame(ko_gene_id = c(NA))
+    #rename(df,!!samp_id:=weighted_kegg_pathways)
+    #lapply(pathwaylist, function(x))
+    all_dfs <- lapply(pathwaylist, rename_select_summarise_pathways)
+    p1 <- join_all(all_dfs, by="PathwayID", type = "full")
+    #p1 <- Reduce(function(x,y) full_join(x,y,by="ko_gene_id"), all_dfs)
+    write.table(p1, file=matrix_path, sep='\t', quote = F, row.names = F)
+
+    p2 <- Reduce(function(x,y) merge(x,y, all=TRUE), pathwaylist)
+    write.table(p2, file=out_path, sep='\t', quote=F, row.names = F)
+}
+
+######################################
+###Aggregate ko_to_modules function###
+######################################
+rename_select_summarise_modules <- function(df) {
+    sampid <- df$sample[1]
+    df <- dplyr::select(df, c("ModuleID", "weighted_kegg_modules")) %>%
+      group_by(ModuleID) %>%
+      summarise(total_weighted = sum(weighted_kegg_modules)) %>%
+      dplyr::select(c("ModuleID", "total_weighted"))
+    dplyr::rename(df, !!sampid:=total_weighted)
+}
+
+agg_to_modules=function(paths, out_path, matrix_path) {
+    modulelist= lapply(paths, function (x) fread(file = x, sep="\t", header = TRUE, showProgress=FALSE))
+
+    all_dfs <- lapply(modulelist, rename_select_summarise_modules)
+    p1 <- join_all(all_dfs, by="ModuleID", type = "full")
+    #p1 <- Reduce(function(x,y) full_join(x,y,by="ko_gene_id"), all_dfs)
+    write.table(p1, file=matrix_path, sep='\t', quote = F, row.names = F)
+
+    p2 <- Reduce(function(x,y) merge(x,y, all=TRUE), modulelist)
+    write.table(p2, file=out_path, sep='\t', quote=F, row.names = F)
+}
+
+######################################
+###Aggregate ko_to_enzymes function###
+######################################
+rename_select_summarise_enzymes <- function(df) {
+    sampid <- df$sample[1]
+    df <- dplyr::select(df, c("EcNumber", "weighted_kegg_enzymes")) %>%
+      group_by(EcNumber) %>%
+      summarise(total_weighted = sum(weighted_kegg_enzymes)) %>%
+      dplyr::select(c("EcNumber", "total_weighted"))
+    dplyr::rename(df, !!sampid:=total_weighted)
+}
+
+agg_to_enzymes=function(paths, out_path, matrix_path) {
+    enzymelist= lapply(paths, function (x) fread(file = x, sep="\t", header = TRUE, showProgress=FALSE))
+
+    all_dfs <- lapply(enzymelist, rename_select_summarise_enzymes)
+    p1 <- join_all(all_dfs, by="EcNumber", type = "full")
+    #p1 <- Reduce(function(x,y) full_join(x,y,by="ko_gene_id"), all_dfs)
+    write.table(p1, file=matrix_path, sep='\t', quote = F, row.names = F)
+
+    p2 <- Reduce(function(x,y) merge(x,y, all=TRUE), enzymelist)
+    write.table(p2, file=out_path, sep='\t', quote=F, row.names = F)
+}
+
+###############################################################
+###Append metadata variables of interest to aggregated files###
+###############################################################
+#metadata_13019 <- "/home/rubel/01_CameroonShotgun/Shotgun_FULL_CM_metadata_2019-01-30.txt" %>%
+#  read_tsv(col_names = TRUE) %>%
+#  rename(Sample = sampleID) 
+
+#metadata_13019 <- as.data.frame(metadata_13019)
+ 
+#metadata_13019_2 <- metadata_13019[,-1] 
+#rownames(metadata_13019_2) <- metadata_13019[,1] 
+#metadata_13019 <- metadata_13019_2 
+#metadata_13019 <- as.data.frame(t(metadata_13019))
+#rm(metadata_13019_2)
+
+#agg_to_[something]$[metadata_variable] <- metadata_13019[rownames(agg_to_[something]), "[metadata_variable]" 
