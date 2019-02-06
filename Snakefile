@@ -60,7 +60,6 @@ rule all_kegg:
     input:
         rules.all_kegg_pathways.output, rules.all_kegg_modules.output, rules.all_kegg_enzymes.output
 
-
 # The R function from snakemake.utils allows R code inline as described here:
 # https://snakemake.readthedocs.io/en/v3.11.0/snakefiles/utils.html#scripting-with-r
 # Compare that with the "snakemake" S4 object available if run via a "script"
