@@ -1,6 +1,8 @@
 from pathlib import Path
 from snakemake.utils import R
 
+include: "rules/lefse.rules"
+
 # This sort of thing can be split off into a configuration file for maximum
 # configurableness.  But this is fine for now.
 DATA_ROOT = Path("/media/lorax/users/marubel/CM_KEGG")

@@ -1,0 +1,140 @@
+from pathlib import Path
+PATH_LEFSE = Path("LEfSe").resolve()
+
+rule lefse_plot_cladogram:
+    output: "{dataset}.clado.{fmt}"
+    input:
+        data="{dataset}.res",
+        lefse=str(PATH_LEFSE)
+    params:
+        dpi=150
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/plot_cladogram.py {input.data} {output} \
+            --dpi {params.dpi} \
+            --format {wildcards.fmt}
+        """
+
+# positional arguments:
+#   INPUT_FILE            tab delimited input file
+#   OUTPUT_FILE           the file for the output image
+# 
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --feature_font_size FEATURE_FONT_SIZE
+#                         the file for the output image
+#   --format {png,svg,pdf}
+#                         the format for the output file
+#   --dpi DPI
+#   --title TITLE
+#   --title_font_size TITLE_FONT_SIZE
+#   --class_legend_font_size CLASS_LEGEND_FONT_SIZE
+#   --width WIDTH
+#   --height HEIGHT       only for vertical histograms
+#   --left_space LS
+#   --right_space RS
+#   --orientation {h,v}
+#   --autoscale {0,1}
+#   --background_color {k,w}
+#                         set the color of the background
+#   --subclades N_SCL     number of label levels to be displayed (starting from
+#                         the leaves, -1 means all the levels, 1 is default )
+#   --max_feature_len MAX_FEATURE_LEN
+#                         Maximum length of feature strings (def 60)
+#   --all_feats ALL_FEATS
+#   --otu_only            Plot only species resolved OTUs (as opposed to all
+#                         levels)
+#   --report_features     Report important features to STDOUT
+rule lefse_plot_res:
+    output: "{dataset}.res.{fmt}"
+    input:
+        data="{dataset}.res",
+        lefse=str(PATH_LEFSE)
+    params:
+        dpi=150 
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/plot_res.py {input.data} {output} \
+            --dpi {params.dpi} \
+            --format {wildcards.fmt}
+        """
+
+# positional arguments:
+#   INPUT_FILE      the input file
+#   OUTPUT_FILE     the output file containing the data for the visualization
+#                   module
+# 
+# optional arguments:
+#   -h, --help      show this help message and exit
+#   -o str          set the file for exporting the result (only concise textual
+#                   form)
+#   -a float        set the alpha value for the Anova test (default 0.05)
+#   -w float        set the alpha value for the Wilcoxon test (default 0.05)
+#   -l float        set the threshold on the absolute value of the logarithmic
+#                   LDA score (default 2.0)
+#   --nlogs int     max log influence of LDA coeff (default: 3)
+#   --verbose int   verbose execution (default 0)
+#   --wilc int      whether to perform the Wilcoxon step (default 1)
+#   -r str          select LDA or SVM for effect size (default LDA)
+#   --svm_norm int  whether to normalize the data in [0,1] for SVM feature
+#                   waiting (default 1 strongly suggested)
+#   -b int          set the number of bootstrap iteration for LDA (default 30)
+#   -e int          set whether perform the wilcoxon test only among the
+#                   subclasses with the same name (default 0)
+#   -c int          set whether perform the wilcoxon test ing the Curtis's
+#                   approach [BETA VERSION] (default 0)
+#   -f float        set the subsampling fraction value for each bootstrap
+#                   iteration (default 0.67)
+#   -s {0,1,2}      set the multiple testing correction options. 0 no correction
+#                   (more strict, default), 1 correction for independent
+#                   comparisons, 2 correction for independent comparison
+#   --min_c int     minimum number of samples per subclass for performing
+#                   wilcoxon test (default 10)
+#   -t str          set the title of the analysis (default input file without
+#                   extension)
+#   -y {0,1}        (for multiclass tasks) set whether the test is performed in
+#                   a one-against-one ( 1 - more strict!) or in a one-against-
+#                   all setting ( 0 - less strict) (default 0)
+rule lefse_run:
+    output: "{dataset}.res"
+    input:
+        data="{dataset}.in",
+        lefse=str(PATH_LEFSE)
+    params:
+        log_lda_score_thresh=2.0,
+        svm_norm=1,
+        one_against_one=0
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell: 
+        """
+            {input.lefse}/run_lefse.py {input.data} {output} \
+            -l {params.log_lda_score_thresh} \
+            --svm_norm {params.svm_norm} \
+            -y {params.one_against_one}
+        """
+
+rule lefse_format_input:
+    output: "{dataset}.in"
+    input:
+        data="{dataset}.txt",
+        lefse=str(PATH_LEFSE)
+    params:
+        c_class=2,
+        s_subclass=-1,
+        u_subject=1,
+        o_norm=1000000
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/format_input.py {input.data} {output} \
+            -c {params.c_class} \
+            -s {params.s_subclass} \
+            -u {params.u_subject} \
+            -o {params.o_norm}
+        """
+
+rule get_lefse:
+    output: directory("LEfSe")
+    shell: "git clone git@github.com:ressy/LEfSe.git"
