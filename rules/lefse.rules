@@ -1,10 +1,76 @@
+"""
+Use weighted pathways/enzyme/module matrices and sample metadata as input for
+LEfSe for a set of manually-selected metadata attributes of interest.  The main
+target here is a set of LEfSe's .res output tables, but rules are defined to
+create the output plots as well.
+"""
+
 from pathlib import Path
 PATH_LEFSE = Path("LEfSe").resolve()
 
+# We're using entries for a text file for the "group" wildcard which has a few
+# weird-looking ones (Sampling.Site) that confuse Snakemake.  Limiting the
+# possible wildcard values clarifies things during dependency resolution.
+wildcard_constraints:
+    category="[A-Za-z]+",
+    group="[A-Za-z_]+\\.?[A-Za-z_]+"
+
+# These are the notable metadata variables that Meagan identified
+with open("shotgun_metadata_cols_of_interest.txt") as f:
+    MD_COLS_LEFSE = [line.strip() for line in f.readlines()]
+
+TARGET_LEFSE = expand("lefse-data/weights.{category}.{group}.res",
+    category = ["pathways", "enzyme", "module"],
+    group = MD_COLS_LEFSE)
+
+rule all_lefse:
+    input: TARGET_LEFSE
+
+# For the LEfSe Python scripts used below I've started to paste the help text
+# for each command (since  we're running these in a sub-conda-environment so
+# it's a little bit of a hassle to pull them up quickly on the command line.)
+
+# positional arguments:
+#   INPUT_FILE            tab delimited input file
+#   OUTPUT_FILE           the file for the output image
+# 
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --clade_sep CLADE_SEP
+#   --max_lev MAX_LEV
+#   --max_point_size MAX_POINT_SIZE
+#   --min_point_size MIN_POINT_SIZE
+#   --point_edge_width MARKEREDGEWIDTH
+#   --siblings_connector_width SIBLINGS_CONNECTOR_WIDTH
+#   --parents_connector_width PARENTS_CONNECTOR_WIDTH
+#   --radial_start_lev RADIAL_START_LEV
+#   --labeled_start_lev LABELED_START_LEV
+#   --labeled_stop_lev LABELED_STOP_LEV
+#   --abrv_start_lev ABRV_START_LEV
+#   --abrv_stop_lev ABRV_STOP_LEV
+#   --expand_void_lev EXPAND_VOID_LEV
+#   --class_legend_vis CLASS_LEGEND_VIS
+#   --colored_connector COLORED_CONNECTORS
+#   --alpha ALPHA
+#   --title TITLE
+#   --sub_clade SUB_CLADE
+#   --title_font_size TITLE_FONT_SIZE
+#   --right_space_prop R_PROP
+#   --left_space_prop L_PROP
+#   --label_font_size LABEL_FONT_SIZE
+#   --background_color {k,w}
+#                         set the color of the background
+#   --colored_labels {0,1}
+#                         draw the label with class color (1) or in black (0)
+#   --class_legend_font_size CLASS_LEGEND_FONT_SIZE
+#   --dpi DPI
+#   --format {png,svg,pdf}
+#                         the format for the output file
+#   --all_feats ALL_FEATS
 rule lefse_plot_cladogram:
-    output: "{dataset}.clado.{fmt}"
+    output: "lefse-data/{dataset}.clado.{fmt}"
     input:
-        data="{dataset}.res",
+        data="lefse-data/{dataset}.res",
         lefse=str(PATH_LEFSE)
     params:
         dpi=150
@@ -47,9 +113,9 @@ rule lefse_plot_cladogram:
 #                         levels)
 #   --report_features     Report important features to STDOUT
 rule lefse_plot_res:
-    output: "{dataset}.res.{fmt}"
+    output: "lefse-data/{dataset}.res.{fmt}"
     input:
-        data="{dataset}.res",
+        data="lefse-data/{dataset}.res",
         lefse=str(PATH_LEFSE)
     params:
         dpi=150
@@ -98,9 +164,9 @@ rule lefse_plot_res:
 #                   a one-against-one ( 1 - more strict!) or in a one-against-
 #                   all setting ( 0 - less strict) (default 0)
 rule lefse_run:
-    output: "{dataset}.res"
+    output: "lefse-data/{dataset}.res"
     input:
-        data="{dataset}.in",
+        data="lefse-data/{dataset}.in",
         lefse=str(PATH_LEFSE)
     params:
         log_lda_score_thresh=2.0,
@@ -146,9 +212,9 @@ rule lefse_run:
 #                         For biom input files: set which feature use as
 #                         subclass
 rule lefse_format_input:
-    output: "{dataset}.in"
+    output: "lefse-data/{dataset}.in"
     input:
-        data="{dataset}.txt",
+        data="lefse-data/{dataset}.for_lefse.tsv",
         lefse=str(PATH_LEFSE)
     # In general we're using  the first row as the subject, the second row as
     # the class, and no subclass.  The -o value is taken from LEfSe's example
@@ -159,6 +225,8 @@ rule lefse_format_input:
         u_subject=1,
         o_norm=1000000
     conda: str(PATH_LEFSE / "conda_requirements.yml")
+    # As far as I can tell this helper script just puts the input data into a
+    # large dict object and then serializes it ("pickle") for use in lefse.
     shell:
         """
             {input.lefse}/format_input.py {input.data} {output} \
@@ -171,9 +239,11 @@ rule lefse_format_input:
 # Put together what LEfSe expects for its first input file: a combo of values
 # matrix and extra rows for sample ID and grouping(s).  This only supports one
 # class currently, no subclass.
+# These are temporary files since they're just a reformatted version of what we
+# have elsewhere.
 rule lefse_gather_input:
     output:
-        data="lefse-data/weights.{category}.{group}.for_lefse.tsv"
+        data=temp("lefse-data/weights.{category}.{group}.for_lefse.tsv")
     input:
         data="all_weighted_{category}_matrix.tsv",
         metadata="shotgun_metadata_2519.csv"
