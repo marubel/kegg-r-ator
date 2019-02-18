@@ -33,15 +33,18 @@ lefse_plot_bars <- function(data) {
   data <- subset(data, ! is.na(ClassHighestMean))
   data <- data[order(data$ClassHighestMean, data$LogLDAScore), ]
   data$pos <- 1:nrow(data)
-  plt <- ggplot(data) +
-    geom_bar(aes(x = pos, y = LogLDAScore, fill=ClassHighestMean), stat = "identity") +
-    coord_flip() +
-    labs(x=NULL, y = "LDA SCORE (log 10)") +
-    scale_x_discrete(limits = data$Feature) +
-    theme(
-      axis.ticks = element_blank(),
+  plt <- ggplot2::ggplot(data) +
+    ggplot2::geom_bar(aes(x = pos,
+                          y = LogLDAScore,
+                          fill = ClassHighestMean),
+                      stat = "identity") +
+    ggplot2::coord_flip() +
+    ggplot2::labs(x=NULL, y = "LDA SCORE (log 10)") +
+    ggplot2::scale_x_discrete(limits = data$Feature) +
+    ggplot2::theme(
+      axis.ticks = ggplot2::element_blank(),
       legend.position = "top",
-      legend.title = element_blank()
+      legend.title = ggplot2::element_blank()
     )
   plt
 }
