@@ -274,26 +274,27 @@ library(dplyr)
 library(viridis)
 library(pheatmap)
 library(ggplot2)
+source("lefse_helpers.R")
 
 s_attrs <- load_sample_attrs("shotgun_metadata_2519.csv")
 weights <- list(
-  pathway = load_weights_tsv("all_weighted_pathways_matrix.tsv"),
-  enzyme = load_weights_tsv("all_weighted_enzyme_matrix.tsv"),
-  module = load_weights_tsv("all_weighted_module_matrix.tsv")
+  pathways = load_weights_tsv("pathways/all_weighted_pathways_matrix.tsv"),
+  enzyme = load_weights_tsv("enzyme/all_weighted_enzyme_matrix.tsv"),
+  module = load_weights_tsv("module/all_weighted_module_matrix.tsv")
 )
 
 # These are metadata variables Meagan is particularly interested in evaluating. 
-metadata_vars <- read.csv("shotgun_metadata_cols_of_interest.txt")
+metadata_vars <- load_txt("shotgun_metadata_cols_of_interest.txt")
 
-# LEfSe data for pathways -> subsistence
-res <- list()
-res$pathway <- list()
-res$pathway$subsistence <- lefse_load_res("awpm_subsistence.res")
-# correct to match existing matrix
-res$pathway$subsistence$Feature <- sub("_", ":", res$pathway$subsistence$Feature)
-res$pathway$subsistence$ClassHighestMean <- sub("_", "-", res$pathway$subsistence$ClassHighestMean)
-#plt <- lefse_plot_bars(res$pathway$subsistence)
-#ggsave("lda.png", plt, width = unit(8.5, "in"), height=unit(30, "in"))
+# A list of two things: a data frame of info on what we ran LEfSe on, and a big
+# ol' list of output data frames for each case.  I've kept these separate for
+# now since the values across cases should never really be presented together, 
+# But for ease of management it could all be combined into one big data frame.
+res_all <- lefse_load_res_all(names(weights), metadata_vars)
+
+# Example: results for pathways <-> subsistence
+plt <- lefse_plot_bars(res_all$res[["pathways:Subsistence"]])
+#ggsave("lda.pdf", plt, width = unit(8.5, "in"), height=unit(30, "in"))
 
 # Based on LEfSe results, how do our raw values for pathways look?
 # Take just columns for the notable features, and rows where Subsistence is set

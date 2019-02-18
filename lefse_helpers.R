@@ -43,7 +43,7 @@ lefse_plot_bars <- function(data) {
   plt
 }
 
-# Take a TSV file with a matrix of observations across samples, a CSV file with 
+# Take a TSV file with a matrix of observations across samples, a CSV file with
 # sample metadata, and a column name to use from the sample metadata, and create
 # a combined TSV file that LEfSe/format_input.py will understand.  Currently
 # supports just one class, no subclass.
@@ -65,7 +65,7 @@ prepare_lefse_input <- function(weights_fp,
   colnames(lefse_metadata) <- c(sample_id_name, column_name)
   combo <- rbind(t(lefse_metadata), t(weights))
   if (! is.null(out_path)) {
-    save_lefse_input(combo, out_path) 
+    save_lefse_input(combo, out_path)
   }
   return(combo)
 }
@@ -75,7 +75,8 @@ save_lefse_input <- function(data, fp) {
               row.names = TRUE, col.names = FALSE)
 }
 
-# Other Functions ---------------------------------------------------------
+
+# File load/save helpers --------------------------------------------------
 
 
 # Load a matrix of numeric values from a TSV file.
@@ -123,4 +124,40 @@ load_txt <- function(fp) {
                    stringsAsFactors = FALSE)[, 1]
   names(data) <- data
   data
+}
+
+
+# Other Functions ---------------------------------------------------------
+
+
+# expand out a set of categories (pathway/module/enzyme) and metadata variables,
+# load a .res file for each combination, and reverse the expected modifications
+# LEfSe has made to our category names.
+lefse_load_res_all <- function(category_names, md_vars) {
+  res_fields <- expand.grid(Prefix = "weights",
+                            Category = category_names,
+                            Group = md_vars,
+                            Suffix = "res",
+                            stringsAsFactors = FALSE)
+  res_fields$Path <- file.path("lefse-data",
+                               do.call(paste,
+                                       c(res_fields, list(sep = "."))))
+  res_fields <- subset(res_fields, select = -c(Prefix, Suffix))
+  res_fields$Case <- with(res_fields, paste(Category, Group, sep = ":"))
+  #res <- lapply(res_fields$Path, lefse_load_res)
+  res <- apply(res_fields, 1, function(row) {
+    data <- lefse_load_res(row[["Path"]])
+    if (row[["Category"]] == "pathways") {
+      data$Feature <- sub("^path_", "path:", data$Feature)
+    } else if (row[["Category"]] == "module") {
+      data$Feature <- sub("^md_", "md:", data$Feature)
+    } else if (row[["Category"]] == "enzyme") {
+      data$Feature <- gsub("_", ".", sub("^ec_", "ec:", data$Feature), fixed = TRUE)
+    } else {
+      warning("unrecognized category/feature name")
+    }
+    data
+  })
+  names(res) <- res_fields$Case
+  list(res_fields = res_fields, res = res)
 }
