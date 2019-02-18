@@ -1,3 +1,6 @@
+#
+# These are functions that help manage input/output for LEfSe.
+#
 
 # LEfSe Helpers -----------------------------------------------------------
 
@@ -81,11 +84,11 @@ save_lefse_input <- function(data, fp) {
 
 # Load a matrix of numeric values from a TSV file.
 # input data:
-# first column is name of the pathway/enzyme/module.  All subsequent columns are
-# samples.  Each row is a single measurement.  Each cell is a value for a given
-# sample+measurement.  Zeros are stored as NAs.
+# first column is name of the pathways/enzymes/modules values.  All subsequent
+# columns are samples.  Each row is a single measurement.  Each cell is a value
+# for a given sample+measurement.  Zeros are stored as NAs.
 # output matrix:
-# columns are measuremnets (pathway/enzyme/module)
+# columns are measurements (within pathways/enzymes/modules)
 # rows are samples
 # zeros are zeros
 # all cells are weight values
@@ -130,9 +133,9 @@ load_txt <- function(fp) {
 # Other Functions ---------------------------------------------------------
 
 
-# expand out a set of categories (pathway/module/enzyme) and metadata variables,
-# load a .res file for each combination, and reverse the expected modifications
-# LEfSe has made to our category names.
+# expand out a set of categories (pathways/modules/enzymes) and metadata
+# variables, load a .res file for each combination, and reverse the expected
+# modifications LEfSe has made to our category names.
 lefse_load_res_all <- function(category_names, md_vars) {
   res_fields <- expand.grid(Prefix = "weights",
                             Category = category_names,
@@ -149,9 +152,9 @@ lefse_load_res_all <- function(category_names, md_vars) {
     data <- lefse_load_res(row[["Path"]])
     if (row[["Category"]] == "pathways") {
       data$Feature <- sub("^path_", "path:", data$Feature)
-    } else if (row[["Category"]] == "module") {
+    } else if (row[["Category"]] == "modules") {
       data$Feature <- sub("^md_", "md:", data$Feature)
-    } else if (row[["Category"]] == "enzyme") {
+    } else if (row[["Category"]] == "enzymes") {
       data$Feature <- gsub("_", ".", sub("^ec_", "ec:", data$Feature), fixed = TRUE)
     } else {
       warning("unrecognized category/feature name")

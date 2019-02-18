@@ -279,11 +279,12 @@ source("lefse_helpers.R")
 s_attrs <- load_sample_attrs("shotgun_metadata_2519.csv")
 weights <- list(
   pathways = load_weights_tsv("pathways/all_weighted_pathways_matrix.tsv"),
-  enzyme = load_weights_tsv("enzyme/all_weighted_enzyme_matrix.tsv"),
-  module = load_weights_tsv("module/all_weighted_module_matrix.tsv")
+  enzymes = load_weights_tsv("enzymes/all_weighted_enzymes_matrix.tsv"),
+  modules = load_weights_tsv("modules/all_weighted_modules_matrix.tsv")
 )
 
-# These are metadata variables Meagan is particularly interested in evaluating. 
+# These are metadata variables Meagan is particularly interested in evaluating
+# with LEfSe.
 metadata_vars <- load_txt("shotgun_metadata_cols_of_interest.txt")
 
 # A list of two things: a data frame of info on what we ran LEfSe on, and a big
@@ -292,21 +293,27 @@ metadata_vars <- load_txt("shotgun_metadata_cols_of_interest.txt")
 # But for ease of management it could all be combined into one big data frame.
 res_all <- lefse_load_res_all(names(weights), metadata_vars)
 
-# Example: results for pathways <-> subsistence
+
+
+# Example: results for pathways <-> subsistence as barcharts
 plt <- lefse_plot_bars(res_all$res[["pathways:Subsistence"]])
 #ggsave("lda.pdf", plt, width = unit(8.5, "in"), height=unit(30, "in"))
 
+
+
+
 # Based on LEfSe results, how do our raw values for pathways look?
 # Take just columns for the notable features, and rows where Subsistence is set
-notables <- subset(res$pathway$subsistence, LogLDAScore > 3 & ClassHighestMean != "0")
+notables <- subset(res_all$res[["pathways:Subsistence"]],
+                   LogLDAScore > 3 & ! ClassHighestMean %in% c("NA", "0"))
 columns <- notables$Feature
-rows <- which(rownames(weights$pathway) %in% as.character(subset(s_attrs, ! is.na(Subsistence))$sampleID))
+rows <- which(rownames(weights$pathways) %in% as.character(subset(s_attrs, ! is.na(Subsistence))$sampleID))
 
 
-# Normalize per sample to unit sum, and scale per pathway to z-score.
-pathway_norm <- t(apply(weights$pathway, 1, function(row) row/sum(row)))
-pathway_notable <- pathway_norm[rows, columns]
-pathway_notable <- scale(pathway_notable)
+# Normalize per sample to unit sum, and scale per value column to z-score.
+pathways_norm <- t(apply(weights$pathways, 1, function(row) row/sum(row)))
+pathways_notable <- pathways_norm[rows, columns]
+pathways_notable <- scale(pathways_notable)
 
 # Now, plot values
 anno_col <- data.frame(
@@ -317,8 +324,8 @@ anno_col <- data.frame(
 anno_col <- anno_col[order(anno_col$EnrichedIn), , drop = FALSE]
 colors <- c(Agropastoralist = 2, "Hunter-Gatherer" = 3, Pastoralist = 4)
 annotation_colors <- list(Subsistence = colors, EnrichedIn = colors)
-pathway_notable <- pathway_notable[, rownames(anno_col)]
-plot_heatmap(pathway_notable,
+pathways_notable <- pathways_notable[, rownames(anno_col)]
+plot_heatmap(pathways_notable,
              s_attrs,
              "Subsistence",
              anno_col = anno_col,
@@ -332,7 +339,7 @@ plot_heatmap(pathway_notable,
 # First off, make sure we're only working with columns that we have useful
 # grouping data for.
 
-s_attrs[rownames(weights$pathway), ] %>%
+s_attrs[rownames(weights$pathways), ] %>%
   columns_summary() %>%
   filter(Variable %in% metadata_vars) %>%
   arrange(match(Variable, metadata_vars)) ->
@@ -352,10 +359,10 @@ if (length(metadata_vars_stub)) {
   metadata_vars <- metadata_vars[! metadata_vars %in% metadata_vars_stub]
 }
 
-# For each matrix of measurements across samples (pathway/module/enzyme), Run 
-# LDA across each of the chosen metadata columns. The output here is a list
-# across pathway/module/enzyme, each containing a list across metadata
-# variables, each containing a list bundling all LDA results for that
+# For each matrix of measurements across samples (pathways/modules/enzymes), Run
+# LDA across each of the chosen metadata columns. The output here is a list 
+# across pathways/modules/enzymes, each containing a list across metadata 
+# variables, each containing a list bundling all LDA results for that 
 # combination.
 datasets <- names(weights)
 names(datasets) <- datasets
@@ -400,7 +407,7 @@ for (set in lda_all) {
 
 # An example
 grp <- "High_Pos_Giardia"
-w <- weights[["pathway"]]
+w <- weights[["pathways"]]
 wvar_meas <- "path:map00944"
 data <- data.frame(
   sampleID = rownames(w),
@@ -416,7 +423,7 @@ ggplot(data) + geom_boxplot(aes(x=Group, y=Measurement))
 # interesting heatmap visualization of the raw values.
 
 # whoa, too many variables!
-set <- "pathway"
+set <- "pathways"
 grouping <- "Subsistence"
 idxl <- !is.na(s_attrs[rownames(weights[[set]]), grouping])
 data <- weights[[set]][idxl, ]
@@ -452,7 +459,7 @@ plot_heatmap(data, s_attrs, by = grouping,
 
 breaks <- seq(-10, 10, 0.5)
 
-zscores <- do.call(rbind, lapply(lda_all$pathway, function(lda_for_var) {
+zscores <- do.call(rbind, lapply(lda_all$pathways, function(lda_for_var) {
   z <- scale(lda_for_var$lds$scaling[, 1])
   hist(z, breaks = breaks, plot=FALSE)$counts
 }))
@@ -497,7 +504,7 @@ names(x) <- x
 # Try an LDA run for each of these variables.
 ld_results <- lapply(x, function(v) {
   within(list(), {
-    lds <- lda(data = weights$pathway,
+    lds <- lda(data = weights$pathways,
         s_attrs = s_attrs,
         sample.id = "sampleID",
         group.id = v,
@@ -507,8 +514,8 @@ ld_results <- lapply(x, function(v) {
 })
 
 # Now, if we look *across* these metadata variables, do any particular ones 
-# stand out as having just one or a few pathway variables that have significant
-# scaling multipliers?
+# stand out as having just one or a few pathways that have significant scaling
+# multipliers?
 # Let's pool all scaling values together for each case, and scale them to zero 
 # mean and unit standard deviation.  Then we can easily glance across them.
 ld_z <- lapply(ld_results, function(data) {
@@ -521,13 +528,13 @@ sapply(ld_z, function(z) {
 })
 
 
-# Example - Pathway -------------------------------------------------------
+# Example - Pathways ------------------------------------------------------
 
 
 # First off, we see pathways separate samples very nicely for multiple possible
 # types of grouping variables.
 
-lds <- lda(data = weights$pathway,
+lds <- lda(data = weights$pathways,
     s_attrs = s_attrs,
     sample.id = "sampleID",
     group.id = "Population",
@@ -546,7 +553,7 @@ ggplot(data) + geom_boxplot(aes(x = Population, y = LD1)) + ggtitle("LD1 by Popu
 
 ### What pathways give the most separating power for Population?
 
-# get a data frame of sorted scaling values per pathway
+# get a data frame of sorted scaling values per pathways variable
 ld_scalings <- build_lda_table(lds)
 hist(ld_scalings$LDMaxMag)
 
@@ -555,7 +562,7 @@ hist(ld_scalings$LDMaxMag)
 for (fraction in seq(1, 0.1, -0.1)) {
   nc <- ceiling(fraction*nrow(ld_scalings))
   columns <- head(ld_scalings$Measurement, nc)
-  data_fraction <- weights$pathway[, columns]
+  data_fraction <- weights$pathways[, columns]
   lds_fraction <- lda(data = data_fraction, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
   plot_lda_scatter(lds_fraction) +
     ggtitle(paste0("LDA by Population (", fraction*100, "% of pathways)")) ->
@@ -569,7 +576,7 @@ for (fraction in seq(1, 0.1, -0.1)) {
 dups <- group_duplicate_columns(lds$data)
 
 # what happens if we trim these out?  shouldn't matter which in terms of the math.
-data <- weights$pathway[, unlist(lapply(dups, `[`, 1))]
+data <- weights$pathways[, unlist(lapply(dups, `[`, 1))]
 lds <- lda(data = data[, 1:176], s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
 
 
@@ -585,12 +592,12 @@ lds <- lda(data = data[, 1:176], s_attrs = s_attrs, sample.id = "sampleID", grou
 size <- ceiling(nrow(ld_scalings)/2)
 ld_scalings_top <- head(ld_scalings, size)
 
-pathway_subset <- weights$pathway[, ld_scalings_top$Measurement]
-pathway_rand <- weights$pathway[, sample(1:ncol(weights$pathway), size)]
+pathways_subset <- weights$pathways[, ld_scalings_top$Measurement]
+pathways_rand <- weights$pathways[, sample(1:ncol(weights$pathways), size)]
 
 
-lds_top <- lda(data = pathway_subset, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
-lds_rand <- lda(data = pathway_rand, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
+lds_top <- lda(data = pathways_subset, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
+lds_rand <- lda(data = pathways_rand, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
 
 plot_lda_scatter(lds) + ggtitle("LDA by Population")
 plot_lda_scatter(lds_top) + ggtitle("LDA by Population, portion of measurements")
@@ -599,28 +606,27 @@ plot_lda_scatter(lds_rand) + ggtitle("LDA by Population, portion of measurements
 
 
 
-plot_heatmap(pathway_subset, s_attrs, "Population")
+plot_heatmap(pathways_subset, s_attrs, "Population")
 
 
 # huh, that doesn't look like much at first glance.  let's sanity check a few directly.
 
 idx <- which(max(abs(ld_scalings$Scaling)) == abs(ld_scalings$Scaling))
 path <- ld_scalings$Measurement[idx]
-vec <- weights$pathway[, path]
+vec <- weights$pathways[, path]
 grp <- s_attrs$Population[match(names(vec), s_attrs$sampleID)]
 boxplot(vec ~ grp)
 # ok, that's something, but it's not amazing.  looks like maybe no single
-# pathway is quite enough.
+# vaiable from pathways is quite enough.
 
 
+# Examples - Enzymes ------------------------------------------------------
 
-# Examples - Enzyme -------------------------------------------------------
 
-
-lds <- lda(data = weights$enzyme, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
+lds <- lda(data = weights$enzymes, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
 plot_lda_scatter(lds)
 # Those NA samples squish the rest of the display
-lds <- lda(data = weights$enzyme, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=FALSE)
+lds <- lda(data = weights$enzymes, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=FALSE)
 plot_lda_scatter(lds)
 
 # ld_scalings <- build_lda_table(lds)
@@ -628,16 +634,15 @@ plot_lda_scatter(lds)
 #   group_by(EnrichedIn) %>%
 #   top_n(10, abs(Scaling)) ->
 #   ld_scalings_top
-# enzyme_subset <- weights$enzyme[, ld_scalings_top$Measurement]
-# plot_heatmap(enzyme_subset, s_attrs, "Population")
+# enzymes_subset <- weights$enzymes[, ld_scalings_top$Measurement]
+# plot_heatmap(enzymes_subset, s_attrs, "Population")
 
 
-# Examples - Module -------------------------------------------------------
+# Example - Module --------------------------------------------------------
 
 
-lds <- lda(data = weights$module, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
+lds <- lda(data = weights$modules, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
 plot_lda_scatter(lds)
-
 
 
 # Example - Combined ------------------------------------------------------
@@ -646,9 +651,9 @@ plot_lda_scatter(lds)
 # No reason we have to keep these variables separate.  They'll get turned into z
 # scores for the analysis anyway.
 
-combo <- weights$pathway
-combo <- cbind(combo, weights$enzyme)
-combo <- cbind(combo, weights$module)
+combo <- weights$pathways
+combo <- cbind(combo, weights$enzymes)
+combo <- cbind(combo, weights$modules)
 
 ######## Wait, what?  how did that make it worse?
 lds <- lda(data = combo, s_attrs = s_attrs, sample.id = "sampleID", group.id = "Population", keep.na=TRUE)
