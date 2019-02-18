@@ -50,9 +50,15 @@ lefse_plot_bars <- function(data) {
 # sample metadata, and a column name to use from the sample metadata, and create
 # a combined TSV file that LEfSe/format_input.py will understand.  Currently
 # supports just one class, no subclass.
+# weights_fp: path to weighted matrix file
+# metadata_fp: path to CSV sample attributes file
+# column_name: name of column in metadata_fp to use as LEfSe class
+# column_name_txt: what should NA values become in the column named above?
+# out_path: output file path
 prepare_lefse_input <- function(weights_fp,
                                 metadata_fp,
                                 column_name,
+                                column_na_txt = NA,
                                 out_path = NULL,
                                 sample_id_name = "sampleID") {
   weights <- load_weights_tsv(weights_fp)
@@ -63,9 +69,17 @@ prepare_lefse_input <- function(weights_fp,
   }
   lefse_metadata <- data.frame(
      s_attrs[[sample_id_name]][rowidx],
-     s_attrs[[column_name]][rowidx]
+     s_attrs[[column_name]][rowidx],
+     stringsAsFactors = FALSE,
+     check.names = FALSE
   )
+  # Set column names
   colnames(lefse_metadata) <- c(sample_id_name, column_name)
+  # Substitute NA values in the grouping column
+  idxl <- is.na(lefse_metadata[[column_name]])
+  lefse_metadata[[column_name]][idxl] <- column_na_txt
+  # Combine and transpose all the information, so metadata is the first few rows
+  # and measurements are the rows that follow
   combo <- rbind(t(lefse_metadata), t(weights))
   if (! is.null(out_path)) {
     save_lefse_input(combo, out_path)

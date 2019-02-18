@@ -18,7 +18,8 @@ characters.  See modify_feature_names().
 
 I suspect this is to protect the R expressions LEfSe creates to call
 robjects.r, so we probably can't remove this safely without a ton of testing
-and fixes.
+and fixes.  Instead I'm selectively reverting the changes I know have happened
+when loading the data back into R afterwards.
 """
 
 from pathlib import Path
@@ -265,12 +266,15 @@ rule lefse_gather_input:
     input:
         data="{category}/all_weighted_{category}_matrix.tsv",
         metadata="shotgun_metadata_2519.csv"
+    params:
+        column_na_txt="0" # NA values in the metadata column will become this
     run: R("""
             source("lefse_helpers.R")
             prepare_lefse_input(
               weights_fp = "{input.data}",
               metadata_fp = "{input.metadata}",
               column_name = "{wildcards.group}",
+              column_na_txt = "{params.column_na_txt}",
               out_path = "{output.data}")
             """)
 
