@@ -267,7 +267,7 @@ rule lefse_gather_input:
         data="{category}/all_weighted_{category}_matrix.tsv",
         metadata="shotgun_metadata_2519.csv"
     params:
-        column_na_txt="0" # NA values in the metadata column will become this
+        column_na_txt="NA" # NA values in the metadata column will become this
     run: R("""
             source("lefse_helpers.R")
             prepare_lefse_input(
