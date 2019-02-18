@@ -120,8 +120,9 @@ load_weights_tsv <- function(fp) {
   cn <- unlist(data[, 1])
   data <- data[, -1]
   data <- t(as.matrix(data))
-  rownames(data) <- rn
-  colnames(data) <- cn
+  # (yes, it will actually set named vectors as row/column names if you let it)
+  rownames(data) <- unname(rn)
+  colnames(data) <- unname(cn)
   data[is.na(data)] <- 0
   data
 }
