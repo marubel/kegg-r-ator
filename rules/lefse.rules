@@ -218,7 +218,7 @@ rule lefse_run:
 #                         For biom input files: set which feature use as
 #                         subclass
 rule lefse_format_input:
-    output: "lefse-data/{dataset}.in"
+    output: temp("lefse-data/{dataset}.in")
     input:
         data="lefse-data/{dataset}.for_lefse.tsv",
         lefse=str(PATH_LEFSE)
@@ -245,8 +245,8 @@ rule lefse_format_input:
 # Put together what LEfSe expects for its first input file: a combo of values
 # matrix and extra rows for sample ID and grouping(s).  This only supports one
 # class currently, no subclass.
-# These are temporary files since they're just a reformatted version of what we
-# have elsewhere.
+# These, along with the .in files created above, are temporary files since
+# they're just a reformatted version of what we have elsewhere.
 rule lefse_gather_input:
     output:
         data=temp("lefse-data/weights.{category}.{group}.for_lefse.tsv")
