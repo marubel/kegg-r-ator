@@ -1,0 +1,279 @@
+"""
+Use weighted pathways/enzymes/modules matrices and sample metadata as input for
+LEfSe for a set of manually-selected metadata attributes of interest.  The main
+target here is a set of LEfSe's .res output tables, but rules are defined to
+create the output plots as well.
+
+NOTE: In snakemake --use-conda must be given when running any of the LEfSe
+scripts below, as they are Python 2 and need to be encapsulated from the rest
+of our environment.  For example: snakemake all_lefse --use-conda
+
+ALSO NOTE: format_input.py mangles feature names to remove a set of disallowed
+characters.  See modify_feature_names().
+
+ * characters removed: $@#%^&*"' or space
+ * characters replaced with underscore: /r()-+={}[],.;:?<>
+ * characters replaced with period: |
+ * features prefixed with "f_": any starting with 0 to 9 or _
+
+I suspect this is to protect the R expressions LEfSe creates to call
+robjects.r, so we probably can't remove this safely without a ton of testing
+and fixes.
+"""
+
+from pathlib import Path
+PATH_LEFSE = Path("LEfSe").resolve()
+
+# We're using entries for a text file for the "group" wildcard which has a few
+# weird-looking ones (Sampling.Site) that confuse Snakemake.  Limiting the
+# possible wildcard values clarifies things during dependency resolution.
+wildcard_constraints:
+    category="[A-Za-z]+",
+    group="[A-Za-z_]+\\.?[A-Za-z_]+"
+
+# These are the notable metadata variables that Meagan identified
+with open("shotgun_metadata_cols_of_interest.txt") as f:
+    MD_COLS_LEFSE = [line.strip() for line in f.readlines()]
+
+TARGET_LEFSE = expand("lefse-data/weights.{category}.{group}.res",
+    category = ["pathways", "enzymes", "modules"],
+    group = MD_COLS_LEFSE)
+
+rule all_lefse:
+    input: TARGET_LEFSE
+
+##############################################################################
+
+# For the LEfSe Python scripts used below I've started to paste the help text
+# for each command (since  we're running these in a sub-conda-environment so
+# it's a little bit of a hassle to pull them up quickly on the command line.)
+
+# positional arguments:
+#   INPUT_FILE            tab delimited input file
+#   OUTPUT_FILE           the file for the output image
+# 
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --clade_sep CLADE_SEP
+#   --max_lev MAX_LEV
+#   --max_point_size MAX_POINT_SIZE
+#   --min_point_size MIN_POINT_SIZE
+#   --point_edge_width MARKEREDGEWIDTH
+#   --siblings_connector_width SIBLINGS_CONNECTOR_WIDTH
+#   --parents_connector_width PARENTS_CONNECTOR_WIDTH
+#   --radial_start_lev RADIAL_START_LEV
+#   --labeled_start_lev LABELED_START_LEV
+#   --labeled_stop_lev LABELED_STOP_LEV
+#   --abrv_start_lev ABRV_START_LEV
+#   --abrv_stop_lev ABRV_STOP_LEV
+#   --expand_void_lev EXPAND_VOID_LEV
+#   --class_legend_vis CLASS_LEGEND_VIS
+#   --colored_connector COLORED_CONNECTORS
+#   --alpha ALPHA
+#   --title TITLE
+#   --sub_clade SUB_CLADE
+#   --title_font_size TITLE_FONT_SIZE
+#   --right_space_prop R_PROP
+#   --left_space_prop L_PROP
+#   --label_font_size LABEL_FONT_SIZE
+#   --background_color {k,w}
+#                         set the color of the background
+#   --colored_labels {0,1}
+#                         draw the label with class color (1) or in black (0)
+#   --class_legend_font_size CLASS_LEGEND_FONT_SIZE
+#   --dpi DPI
+#   --format {png,svg,pdf}
+#                         the format for the output file
+#   --all_feats ALL_FEATS
+rule lefse_plot_cladogram:
+    output: "lefse-data/{dataset}.clado.{fmt}"
+    input:
+        data="lefse-data/{dataset}.res",
+        lefse=str(PATH_LEFSE)
+    params:
+        dpi=150
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/plot_cladogram.py {input.data} {output} \
+            --dpi {params.dpi} \
+            --format {wildcards.fmt}
+        """
+
+# positional arguments:
+#   INPUT_FILE            tab delimited input file
+#   OUTPUT_FILE           the file for the output image
+#
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --feature_font_size FEATURE_FONT_SIZE
+#                         the file for the output image
+#   --format {png,svg,pdf}
+#                         the format for the output file
+#   --dpi DPI
+#   --title TITLE
+#   --title_font_size TITLE_FONT_SIZE
+#   --class_legend_font_size CLASS_LEGEND_FONT_SIZE
+#   --width WIDTH
+#   --height HEIGHT       only for vertical histograms
+#   --left_space LS
+#   --right_space RS
+#   --orientation {h,v}
+#   --autoscale {0,1}
+#   --background_color {k,w}
+#                         set the color of the background
+#   --subclades N_SCL     number of label levels to be displayed (starting from
+#                         the leaves, -1 means all the levels, 1 is default )
+#   --max_feature_len MAX_FEATURE_LEN
+#                         Maximum length of feature strings (def 60)
+#   --all_feats ALL_FEATS
+#   --otu_only            Plot only species resolved OTUs (as opposed to all
+#                         levels)
+#   --report_features     Report important features to STDOUT
+rule lefse_plot_res:
+    output: "lefse-data/{dataset}.res.{fmt}"
+    input:
+        data="lefse-data/{dataset}.res",
+        lefse=str(PATH_LEFSE)
+    params:
+        dpi=150
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/plot_res.py {input.data} {output} \
+            --dpi {params.dpi} \
+            --format {wildcards.fmt}
+        """
+
+# positional arguments:
+#   INPUT_FILE      the input file
+#   OUTPUT_FILE     the output file containing the data for the visualization
+#                   module
+#
+# optional arguments:
+#   -h, --help      show this help message and exit
+#   -o str          set the file for exporting the result (only concise textual
+#                   form)
+#   -a float        set the alpha value for the Anova test (default 0.05)
+#   -w float        set the alpha value for the Wilcoxon test (default 0.05)
+#   -l float        set the threshold on the absolute value of the logarithmic
+#                   LDA score (default 2.0)
+#   --nlogs int     max log influence of LDA coeff (default: 3)
+#   --verbose int   verbose execution (default 0)
+#   --wilc int      whether to perform the Wilcoxon step (default 1)
+#   -r str          select LDA or SVM for effect size (default LDA)
+#   --svm_norm int  whether to normalize the data in [0,1] for SVM feature
+#                   waiting (default 1 strongly suggested)
+#   -b int          set the number of bootstrap iteration for LDA (default 30)
+#   -e int          set whether perform the wilcoxon test only among the
+#                   subclasses with the same name (default 0)
+#   -c int          set whether perform the wilcoxon test ing the Curtis's
+#                   approach [BETA VERSION] (default 0)
+#   -f float        set the subsampling fraction value for each bootstrap
+#                   iteration (default 0.67)
+#   -s {0,1,2}      set the multiple testing correction options. 0 no correction
+#                   (more strict, default), 1 correction for independent
+#                   comparisons, 2 correction for independent comparison
+#   --min_c int     minimum number of samples per subclass for performing
+#                   wilcoxon test (default 10)
+#   -t str          set the title of the analysis (default input file without
+#                   extension)
+#   -y {0,1}        (for multiclass tasks) set whether the test is performed in
+#                   a one-against-one ( 1 - more strict!) or in a one-against-
+#                   all setting ( 0 - less strict) (default 0)
+rule lefse_run:
+    output: "lefse-data/{dataset}.res"
+    input:
+        data="lefse-data/{dataset}.in",
+        lefse=str(PATH_LEFSE)
+    params:
+        log_lda_score_thresh=2.0,
+        svm_norm=1,
+        one_against_one=0
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    shell:
+        """
+            {input.lefse}/run_lefse.py {input.data} {output} \
+            -l {params.log_lda_score_thresh} \
+            --svm_norm {params.svm_norm} \
+            -y {params.one_against_one}
+        """
+
+# positional arguments:
+#   INPUT_FILE            the input file, feature hierarchical level can be
+#                         specified with | or . and those symbols must not be
+#                         present for other reasons in the input file.
+#   OUTPUT_FILE           the output file containing the data for LEfSe
+#
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --output_table OUTPUT_TABLE
+#                         the formatted table in txt format
+#   -f {c,r}              set whether the features are on rows (default) or on
+#                         columns
+#   -c [1..n_feats]       set which feature use as class (default 1)
+#   -s [1..n_feats]       set which feature use as subclass (default -1 meaning
+#                         no subclass)
+#   -o float              set the normalization value (default -1.0 meaning no
+#                         normalization)
+#   -u [1..n_feats]       set which feature use as subject (default -1 meaning
+#                         no subject)
+#   -m {f,s}              set the policy to adopt with missin values: f removes
+#                         the features with missing values, s removes samples
+#                         with missing values (default f)
+#   -n int                set the minimum cardinality of each subclass
+#                         (subclasses with low cardinalities will be grouped
+#                         together, if the cardinality is still low, no pairwise
+#                         comparison will be performed with them)
+#   -biom_c BIOM_CLASS    For biom input files: Set which feature use as class
+#   -biom_s BIOM_SUBCLASS
+#                         For biom input files: set which feature use as
+#                         subclass
+rule lefse_format_input:
+    output: temp("lefse-data/{dataset}.in")
+    input:
+        data="lefse-data/{dataset}.for_lefse.tsv",
+        lefse=str(PATH_LEFSE)
+    # In general we're using  the first row as the subject, the second row as
+    # the class, and no subclass.  The -o value is taken from LEfSe's example
+    # script and also matches the value chosen in the Galaxy web interface.
+    params:
+        c_class=2,
+        s_subclass=-1,
+        u_subject=1,
+        o_norm=1000000
+    conda: str(PATH_LEFSE / "conda_requirements.yml")
+    # As far as I can tell this helper script just puts the input data into a
+    # large dict object and then serializes it ("pickle") for use in lefse.
+    shell:
+        """
+            {input.lefse}/format_input.py {input.data} {output} \
+            -c {params.c_class} \
+            -s {params.s_subclass} \
+            -u {params.u_subject} \
+            -o {params.o_norm}
+        """
+
+# Put together what LEfSe expects for its first input file: a combo of values
+# matrix and extra rows for sample ID and grouping(s).  This only supports one
+# class currently, no subclass.
+# These, along with the .in files created above, are temporary files since
+# they're just a reformatted version of what we have elsewhere.
+rule lefse_gather_input:
+    output:
+        data=temp("lefse-data/weights.{category}.{group}.for_lefse.tsv")
+    input:
+        data="{category}/all_weighted_{category}_matrix.tsv",
+        metadata="shotgun_metadata_2519.csv"
+    run: R("""
+            source("lefse_helpers.R")
+            prepare_lefse_input(
+              weights_fp = "{input.data}",
+              metadata_fp = "{input.metadata}",
+              column_name = "{wildcards.group}",
+              out_path = "{output.data}")
+            """)
+
+rule get_lefse:
+    output: directory("LEfSe")
+    shell: "git clone git@github.com:ressy/LEfSe.git"

@@ -1,6 +1,8 @@
 from pathlib import Path
 from snakemake.utils import R
 
+include: "rules/lefse.rules"
+
 # This sort of thing can be split off into a configuration file for maximum
 # configurableness.  But this is fine for now.
 DATA_ROOT = Path("/media/lorax/users/marubel/CM_KEGG")
@@ -19,10 +21,10 @@ rule all_kegg_to_ko:
 
 rule all_kegg_pathways:
     input:
-        expand("pathways/ko_kegg_pathway_{sample}.tsv", sample = SAMPLES)
+        expand("pathways/ko_kegg_pathways_{sample}.tsv", sample = SAMPLES)
     output:
-        rbound = "pathways/all_pathway_summary.tsv",
-        matrix = "pathways/all_weighted_pathway_matrix.tsv"
+        rbound = "pathways/all_pathways_summary.tsv",
+        matrix = "pathways/all_weighted_pathways_matrix.tsv"
     run:
         R("""
 	source("kegg-r-ator.R")
@@ -32,10 +34,10 @@ rule all_kegg_pathways:
 
 rule all_kegg_modules:
     input:
-        expand("modules/ko_module_df_{sample}.tsv", sample = SAMPLES)
+        expand("modules/ko_modules_df_{sample}.tsv", sample = SAMPLES)
     output:
-        rbound = "modules/all_module_summary.tsv",
-        matrix = "modules/all_weighted_module_matrix.tsv"
+        rbound = "modules/all_modules_summary.tsv",
+        matrix = "modules/all_weighted_modules_matrix.tsv"
     run:
         R("""
         source("kegg-r-ator.R")
@@ -47,8 +49,8 @@ rule all_kegg_enzymes:
     input:
         expand("enzymes/ko_enzymes_df_{sample}.tsv", sample = SAMPLES)
     output:
-        rbound = "enzymes/all_enzyme_summary.tsv",
-        matrix = "enzymes/all_weighted_enzyme_matrix.tsv"
+        rbound = "enzymes/all_enzymes_summary.tsv",
+        matrix = "enzymes/all_weighted_enzymes_matrix.tsv"
     run:
         R("""
         source("kegg-r-ator.R")
@@ -93,7 +95,7 @@ rule kegg_to_ko:
 # function
 rule ko_to_pathways:
     output: 
-        tsv = "pathways/ko_kegg_pathway_{sample}.tsv"
+        tsv = "pathways/ko_kegg_pathways_{sample}.tsv"
     input: 
         KO_kegg_df_fp = "ko/KO_kegg_df_{sample}.tsv",
         map_title_fp = str(METADATA_ROOT / "map_title.tab"),
@@ -115,7 +117,7 @@ rule ko_to_pathways:
 # function
 rule ko_to_modules:
     output:
-        tsv = "modules/ko_module_df_{sample}.tsv"
+        tsv = "modules/ko_modules_df_{sample}.tsv"
     input:
         KO_kegg_df_fp = "ko/KO_kegg_df_{sample}.tsv",
         ko_module_fp = str(METADATA_ROOT / "ko_module.list"),
