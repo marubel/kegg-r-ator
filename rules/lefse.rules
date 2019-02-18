@@ -36,7 +36,7 @@ wildcard_constraints:
 with open("shotgun_metadata_cols_of_interest.txt") as f:
     MD_COLS_LEFSE = [line.strip() for line in f.readlines()]
 
-TARGET_LEFSE = expand("lefse-data/weights.{category}.{group}.res",
+TARGET_LEFSE = expand("lefse-results/weights.{category}.{group}.res",
     category = ["pathways", "enzymes", "modules"],
     group = MD_COLS_LEFSE)
 
@@ -87,9 +87,9 @@ rule all_lefse:
 #                         the format for the output file
 #   --all_feats ALL_FEATS
 rule lefse_plot_cladogram:
-    output: "lefse-data/{dataset}.clado.{fmt}"
+    output: "lefse-results/{dataset}.clado.{fmt}"
     input:
-        data="lefse-data/{dataset}.res",
+        data="lefse-results/{dataset}.res",
         lefse=str(PATH_LEFSE)
     params:
         dpi=150
@@ -132,9 +132,9 @@ rule lefse_plot_cladogram:
 #                         levels)
 #   --report_features     Report important features to STDOUT
 rule lefse_plot_res:
-    output: "lefse-data/{dataset}.res.{fmt}"
+    output: "lefse-results/{dataset}.res.{fmt}"
     input:
-        data="lefse-data/{dataset}.res",
+        data="lefse-results/{dataset}.res",
         lefse=str(PATH_LEFSE)
     params:
         dpi=150
@@ -183,9 +183,9 @@ rule lefse_plot_res:
 #                   a one-against-one ( 1 - more strict!) or in a one-against-
 #                   all setting ( 0 - less strict) (default 0)
 rule lefse_run:
-    output: "lefse-data/{dataset}.res"
+    output: "lefse-results/{dataset}.res"
     input:
-        data="lefse-data/{dataset}.in",
+        data="lefse-results/{dataset}.in",
         lefse=str(PATH_LEFSE)
     params:
         log_lda_score_thresh=2.0,
@@ -231,9 +231,9 @@ rule lefse_run:
 #                         For biom input files: set which feature use as
 #                         subclass
 rule lefse_format_input:
-    output: temp("lefse-data/{dataset}.in")
+    output: temp("lefse-results/{dataset}.in")
     input:
-        data="lefse-data/{dataset}.for_lefse.tsv",
+        data="lefse-results/{dataset}.for_lefse.tsv",
         lefse=str(PATH_LEFSE)
     # In general we're using  the first row as the subject, the second row as
     # the class, and no subclass.  The -o value is taken from LEfSe's example
@@ -262,7 +262,7 @@ rule lefse_format_input:
 # they're just a reformatted version of what we have elsewhere.
 rule lefse_gather_input:
     output:
-        data=temp("lefse-data/weights.{category}.{group}.for_lefse.tsv")
+        data=temp("lefse-results/weights.{category}.{group}.for_lefse.tsv")
     input:
         data="{category}/all_weighted_{category}_matrix.tsv",
         metadata="shotgun_metadata_2519.csv"

@@ -156,7 +156,7 @@ lefse_load_res_all <- function(category_names, md_vars) {
                             Group = md_vars,
                             Suffix = "res",
                             stringsAsFactors = FALSE)
-  res_fields$Path <- file.path("lefse-data",
+  res_fields$Path <- file.path("lefse-results",
                                do.call(paste,
                                        c(res_fields, list(sep = "."))))
   res_fields <- subset(res_fields, select = -c(Prefix, Suffix))
