@@ -19,7 +19,7 @@ rule lefse_plot_cladogram:
 # positional arguments:
 #   INPUT_FILE            tab delimited input file
 #   OUTPUT_FILE           the file for the output image
-# 
+#
 # optional arguments:
 #   -h, --help            show this help message and exit
 #   --feature_font_size FEATURE_FONT_SIZE
@@ -52,7 +52,7 @@ rule lefse_plot_res:
         data="{dataset}.res",
         lefse=str(PATH_LEFSE)
     params:
-        dpi=150 
+        dpi=150
     conda: str(PATH_LEFSE / "conda_requirements.yml")
     shell:
         """
@@ -65,7 +65,7 @@ rule lefse_plot_res:
 #   INPUT_FILE      the input file
 #   OUTPUT_FILE     the output file containing the data for the visualization
 #                   module
-# 
+#
 # optional arguments:
 #   -h, --help      show this help message and exit
 #   -o str          set the file for exporting the result (only concise textual
@@ -107,7 +107,7 @@ rule lefse_run:
         svm_norm=1,
         one_against_one=0
     conda: str(PATH_LEFSE / "conda_requirements.yml")
-    shell: 
+    shell:
         """
             {input.lefse}/run_lefse.py {input.data} {output} \
             -l {params.log_lda_score_thresh} \
@@ -115,11 +115,44 @@ rule lefse_run:
             -y {params.one_against_one}
         """
 
+# positional arguments:
+#   INPUT_FILE            the input file, feature hierarchical level can be
+#                         specified with | or . and those symbols must not be
+#                         present for other reasons in the input file.
+#   OUTPUT_FILE           the output file containing the data for LEfSe
+#
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --output_table OUTPUT_TABLE
+#                         the formatted table in txt format
+#   -f {c,r}              set whether the features are on rows (default) or on
+#                         columns
+#   -c [1..n_feats]       set which feature use as class (default 1)
+#   -s [1..n_feats]       set which feature use as subclass (default -1 meaning
+#                         no subclass)
+#   -o float              set the normalization value (default -1.0 meaning no
+#                         normalization)
+#   -u [1..n_feats]       set which feature use as subject (default -1 meaning
+#                         no subject)
+#   -m {f,s}              set the policy to adopt with missin values: f removes
+#                         the features with missing values, s removes samples
+#                         with missing values (default f)
+#   -n int                set the minimum cardinality of each subclass
+#                         (subclasses with low cardinalities will be grouped
+#                         together, if the cardinality is still low, no pairwise
+#                         comparison will be performed with them)
+#   -biom_c BIOM_CLASS    For biom input files: Set which feature use as class
+#   -biom_s BIOM_SUBCLASS
+#                         For biom input files: set which feature use as
+#                         subclass
 rule lefse_format_input:
     output: "{dataset}.in"
     input:
         data="{dataset}.txt",
         lefse=str(PATH_LEFSE)
+    # In general we're using  the first row as the subject, the second row as
+    # the class, and no subclass.  The -o value is taken from LEfSe's example
+    # script and also matches the value chosen in the Galaxy web interface.
     params:
         c_class=2,
         s_subclass=-1,
@@ -134,6 +167,24 @@ rule lefse_format_input:
             -u {params.u_subject} \
             -o {params.o_norm}
         """
+
+# Put together what LEfSe expects for its first input file: a combo of values
+# matrix and extra rows for sample ID and grouping(s).  This only supports one
+# class currently, no subclass.
+rule lefse_gather_input:
+    output:
+        data="lefse-data/weights.{category}.{group}.for_lefse.tsv"
+    input:
+        data="all_weighted_{category}_matrix.tsv",
+        metadata="shotgun_metadata_2519.csv"
+    run: R("""
+            source("lefse_helpers.R")
+            prepare_lefse_input(
+              weights_fp = "{input.data}",
+              metadata_fp = "{input.metadata}",
+              column_name = "{wildcards.group}",
+              out_path = "{output.data}")
+            """)
 
 rule get_lefse:
     output: directory("LEfSe")

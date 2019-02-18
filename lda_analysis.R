@@ -1,98 +1,11 @@
-###############
+#
 # This is currently a big messy glob of examples and attempts and dead ends.
 # Take with a grain of salt!
-###############
-
-# LEfSe Helpers -----------------------------------------------------------
-
-
-# From http://huttenhower.sph.harvard.edu/galaxy/:
 #
-# "The output consists of a tabular file listing all the features, the logarithm
-# value of the highest mean among all the classes, and if the feature is
-# discriminative, the class with the highest mean and the logarithmic LDA score."
-#
-# But that's just four columns.  What about the fifth?
-#
-# From run_lefse.py:
-#
-# 97     outres = {}
-# 98     outres['lda_res_th'] = lda_res_th
-# 99     outres['lda_res'] = lda_res
-# 100     outres['cls_means'] = cls_means
-# 101     outres['cls_means_kord'] = kord
-# 102     outres['wilcox_res'] = wilcoxon_res
-load_res <- function(fp) {
-  data <- read.table(fp, sep="\t", header = FALSE, stringsAsFactors = FALSE, na.strings = c("", "-"))
-  colnames(data) <- c("Feature", "LogHighestMean", "ClassHighestMean", "LogLDAScore", "WilcoxRes")
-  data
-}
 
-
-# LEfSe Example -----------------------------------------------------------
-
-
-x <- load_res("awpm_subsistence.res")
-x <- x[order(x$ClassHighestMean, x$LogLDAScore), ]
-x$pos <- 1:nrow(x)
-
-x <- filter(x, ! is.na(ClassHighestMean)) 
-
-plt <- ggplot(x) +
-    geom_bar(aes(x = pos, y = LogLDAScore, fill=ClassHighestMean), stat = "identity") +
-    coord_flip() +
-    labs(x=NULL, y = "LDA SCORE (log 10)") +
-    scale_x_discrete(limits = x$Feature) +
-    #theme_classic() +
-    theme(
-      #axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      legend.position = "top",
-      legend.title = element_blank()
-    )
-
-ggsave("lda.png", plt, width = unit(8.5, "in"), height=unit(30, "in"))
 
 # Custom Functions --------------------------------------------------------
 
-
-# Load a matrix of numeric values from a TSV file.
-# input data:
-# first column is name of the pathway/enzyme/module.  All subsequent columns are
-# samples.  Each row is a single measurement.  Each cell is a value for a given
-# sample+measurement.  Zeros are stored as NAs.
-# output matrix:
-# columns are measuremnets (pathway/enzyme/module)
-# rows are samples
-# zeros are zeros
-# all cells are weight values
-load_weights_tsv <- function(fp) {
-  data <- data.table::fread(fp, header = TRUE, check.names = FALSE)
-  na_rows <- which(apply(data, 1, function(row) all(is.na(row))))
-  if (length(na_rows)) {
-    warning("NA rows found, removing")
-    data <- data[-na_rows, ]
-  }
-  rn <- sub("_1(\\.dedup)?", "", colnames(data)[-1])
-  cn <- data[, 1][[1]]
-  data <- data[, -1]
-  data <- t(as.matrix(data))
-  rownames(data) <- rn
-  colnames(data) <- cn
-  data[is.na(data)] <- 0
-  data
-}
-
-# Load sample attributes from a CSV file.
-load_sample_attrs <- function(fp) {
-  # first column is just a row number.
-  data <- data.table::fread(fp,
-                    drop = 1,
-                    colClasses = c(sampleID = "factor"))
-  data <- as.data.frame(data)
-  rownames(data) <- data$sampleID
-  data
-}
 
 # LDA.
 # data: Assumes row names of matrix are sample identifiers, column names 
@@ -271,31 +184,38 @@ plot_lda_bars <- function(ld_scalings, n=20, is_per_grp=FALSE) {
 }
 
 # by: group and annotate samples by this s_attrs column.
-plot_heatmap <- function(data, s_attrs, by, logstep=0.1,
+plot_heatmap <- function(data, s_attrs, by, use_log=TRUE, logstep=0.1,
                          cluster_rows = FALSE, cluster_cols = FALSE,
                          anno_col=NULL, annotation_colors=NULL) {
   # sort and annotate rows
-  anno_row <- data.frame(x = s_attrs[[by]])
+  anno_row <- data.frame(x = s_attrs[[by]], stringsAsFactors = FALSE)
   colnames(anno_row) <- by
   rownames(anno_row) <- s_attrs$sampleID
+  anno_row <- anno_row[rownames(data), , drop = FALSE]
   anno_row <- anno_row[order(anno_row[[by]]), , drop=FALSE]
   data <- data[order(match(rownames(data), rownames(anno_row))), ]
   
-  data[data==0] <- NA
-  data <- log10(data)
-  
-  x_min <- ceiling(min(data, na.rm=TRUE))
-  x_max <- floor(max(data, na.rm=TRUE))
-  breaks <- seq(x_min, x_max, logstep)
-  colors <- viridis::viridis(length(breaks)-1)
+  if (use_log) {
+    data[data==0] <- NA
+    data <- log10(data)
+    x_min <- ceiling(min(data, na.rm=TRUE))
+    x_max <- floor(max(data, na.rm=TRUE))
+    breaks <- seq(x_min, x_max, logstep)
+    colors <- viridis::viridis(length(breaks)-1)  
+  }
   
   args <- list(mat = data,
                cluster_rows = cluster_rows,
                cluster_cols = cluster_cols,
-               breaks = breaks,
-               annotation_row = anno_row,
-               color = colors)
+               annotation_row = anno_row)
 
+  if (use_log) {
+    args <- c(args, list(
+      breaks = breaks,
+      color = colors
+    ))
+  }
+  
   if (!is.null(anno_col)) {
     args <- c(args, list(
       annotation_col = anno_col
@@ -306,6 +226,7 @@ plot_heatmap <- function(data, s_attrs, by, logstep=0.1,
       annotation_colors = annotation_colors
     ))
   }
+
   do.call(pheatmap::pheatmap, args)
 }
 
@@ -362,30 +283,50 @@ weights <- list(
 )
 
 # These are metadata variables Meagan is particularly interested in evaluating. 
-metadata_vars <- c("Sex",
-                   "Subsistence",
-                   "Sampling.Site",
-                   "Total_ANTS",
-                   "Population",
-                   "HIV_positive_combokitresult",
-                   "PosOrNeg_Ascaris",
-                   "PosOrNeg_Entamoeba",
-                   "PosOrNeg_Giardia",
-                   "PosOrNeg_Necator",
-                   "PosOrNeg_Strongyloides",
-                   "PosOrNeg_Trichuris",
-                   "PosOrNeg_PanCrypto",
-                   "PosOrNeg_Ancylostoma",
-                   "High_Pos_Ascaris",
-                   "High_Pos_Entamoeba",
-                   "High_Pos_Giardia",
-                   "High_Pos_Necator",
-                   "High_Pos_Strongyloides",
-                   "High_Pos_Trichuris",
-                   "High_Pos_Ancylostoma",
-                   "High_Pos_Crypto",
-                   "ants_binary")
-names(metadata_vars) <- metadata_vars
+metadata_vars <- read.csv("shotgun_metadata_cols_of_interest.txt")
+
+# LEfSe data for pathways -> subsistence
+res <- list()
+res$pathway <- list()
+res$pathway$subsistence <- lefse_load_res("awpm_subsistence.res")
+# correct to match existing matrix
+res$pathway$subsistence$Feature <- sub("_", ":", res$pathway$subsistence$Feature)
+res$pathway$subsistence$ClassHighestMean <- sub("_", "-", res$pathway$subsistence$ClassHighestMean)
+#plt <- lefse_plot_bars(res$pathway$subsistence)
+#ggsave("lda.png", plt, width = unit(8.5, "in"), height=unit(30, "in"))
+
+# Based on LEfSe results, how do our raw values for pathways look?
+# Take just columns for the notable features, and rows where Subsistence is set
+notables <- subset(res$pathway$subsistence, LogLDAScore > 3 & ClassHighestMean != "0")
+columns <- notables$Feature
+rows <- which(rownames(weights$pathway) %in% as.character(subset(s_attrs, ! is.na(Subsistence))$sampleID))
+
+
+# Normalize per sample to unit sum, and scale per pathway to z-score.
+pathway_norm <- t(apply(weights$pathway, 1, function(row) row/sum(row)))
+pathway_notable <- pathway_norm[rows, columns]
+pathway_notable <- scale(pathway_notable)
+
+# Now, plot values
+anno_col <- data.frame(
+  EnrichedIn = notables$ClassHighestMean,
+  row.names = notables$Feature,
+  stringsAsFactors = FALSE
+)
+anno_col <- anno_col[order(anno_col$EnrichedIn), , drop = FALSE]
+colors <- c(Agropastoralist = 2, "Hunter-Gatherer" = 3, Pastoralist = 4)
+annotation_colors <- list(Subsistence = colors, EnrichedIn = colors)
+pathway_notable <- pathway_notable[, rownames(anno_col)]
+plot_heatmap(pathway_notable,
+             s_attrs,
+             "Subsistence",
+             anno_col = anno_col,
+             annotation_colors = annotation_colors,
+             use_log = FALSE)
+
+
+# Analysis - Custom -------------------------------------------------------
+
 
 # First off, make sure we're only working with columns that we have useful
 # grouping data for.

@@ -13,3 +13,4 @@ dependencies:
   - r-magrittr
   - r-readr
   - r-stringr
+  - r-data.table
