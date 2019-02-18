@@ -7,6 +7,18 @@ create the output plots as well.
 NOTE: In snakemake --use-conda must be given when running any of the LEfSe
 scripts below, as they are Python 2 and need to be encapsulated from the rest
 of our environment.  For example: snakemake all_lefse --use-conda
+
+ALSO NOTE: format_input.py mangles feature names to remove a set of disallowed
+characters.  See modify_feature_names().
+
+ * characters removed: $@#%^&*"' or space
+ * characters replaced with underscore: /r()-+={}[],.;:?<>
+ * characters replaced with period: |
+ * features prefixed with "f_": any starting with 0 to 9 or _
+
+I suspect this is to protect the R expressions LEfSe creates to call
+robjects.r, so we probably can't remove this safely without a ton of testing
+and fixes.
 """
 
 from pathlib import Path
