@@ -3,6 +3,10 @@ Use weighted pathways/enzyme/module matrices and sample metadata as input for
 LEfSe for a set of manually-selected metadata attributes of interest.  The main
 target here is a set of LEfSe's .res output tables, but rules are defined to
 create the output plots as well.
+
+NOTE: In snakemake --use-conda must be given when running any of the LEfSe
+scripts below, as they are Python 2 and need to be encapsulated from the rest
+of our environment.  For example: snakemake all_lefse --use-conda
 """
 
 from pathlib import Path
@@ -25,6 +29,8 @@ TARGET_LEFSE = expand("lefse-data/weights.{category}.{group}.res",
 
 rule all_lefse:
     input: TARGET_LEFSE
+
+##############################################################################
 
 # For the LEfSe Python scripts used below I've started to paste the help text
 # for each command (since  we're running these in a sub-conda-environment so
