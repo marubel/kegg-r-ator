@@ -36,7 +36,7 @@ wildcard_constraints:
 with open("shotgun_metadata_cols_of_interest.txt") as f:
     MD_COLS_LEFSE = [line.strip() for line in f.readlines()]
 
-TARGET_LEFSE = expand("lefse-results/weights.{category}.{group}.res",
+TARGET_LEFSE = expand("lefse-results/weights.{category}.{group}.heatmap.pdf",
     category = ["pathways", "enzymes", "modules"],
     group = MD_COLS_LEFSE)
 
@@ -45,6 +45,41 @@ rule all_lefse:
 
 ##############################################################################
 
+# LEfSe post-processing
+
+# Make a heatmap of an original weighted values matrix, but only including
+# measurements that exceed a particular LogLDAScore from LEfSe's results for a
+# particular metadata column.
+# Samples are on rows, grouped by their membership in the metadata column, and
+# measurements are on columns, grouped by LEfSe's identified enrichment.
+# Values are normalized to unit sum per sample and to zero mean and unit
+# standard deviation per measurement.
+rule plot_heatmap_with_lefse:
+    output:
+        pdf="lefse-results/weights.{category}.{group}.heatmap.pdf"
+    input:
+        data="{category}/all_weighted_{category}_matrix.tsv",
+        metadata="shotgun_metadata_2519.csv",
+        res="lefse-results/weights.{category}.{group}.res"
+    params:
+        lda_score_min=3,
+        column_na_txt="NA"
+    run: R("""
+            source("lefse_helpers.R")
+            plot_heatmap_with_lefse_files(
+              weights_fp = "{input.data}",
+              res_fp = "{input.res}",
+              metadata_fp = "{input.metadata}",
+              column_name = "{wildcards.group}",
+              out_path = "{output.pdf}",
+              lda_score_min = {params.lda_score_min},
+              column_na_txt = "{params.column_na_txt}")
+            """)
+
+##############################################################################
+
+# LEfSe processing
+#
 # For the LEfSe Python scripts used below I've started to paste the help text
 # for each command (since  we're running these in a sub-conda-environment so
 # it's a little bit of a hassle to pull them up quickly on the command line.)

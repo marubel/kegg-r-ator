@@ -2,6 +2,12 @@
 # These are functions that help manage input/output for LEfSe.
 #
 
+pkgs <- c("ggplot2", "pheatmap")
+notloaded <- ! sapply(pkgs, require, character.only = TRUE, quietly = TRUE)
+if (sum(notloaded)) {
+  install.packages(pkgs[notloaded])
+}
+
 # LEfSe Helpers -----------------------------------------------------------
 
 
@@ -25,7 +31,22 @@
 lefse_load_res <- function(fp) {
   data <- read.table(fp, sep="\t", header = FALSE, stringsAsFactors = FALSE, na.strings = c("", "-"))
   colnames(data) <- c("Feature", "LogHighestMean", "ClassHighestMean", "LogLDAScore", "WilcoxRes")
+  data$Feature <- lefse_unmangle_features(data$Feature)
   data
+}
+
+# specific corrections for our feature names.
+lefse_unmangle_features <- function(vec) {
+  if (any(grepl("^path_", vec))) {
+    vec <- sub("^path_", "path:", vec)
+  } else if (any(grepl("^md_", vec))) {
+    vec <- sub("^md_", "md:", vec)
+  } else if (any(grepl("^ec_", vec))) {
+    vec <- gsub("_", ".", sub("^ec_", "ec:", vec), fixed = TRUE)
+  } else {
+    warning("unrecognized category/feature name")
+  }
+  vec
 }
 
 # create a LEfSe-style grouped bar graph with scores per feature.
@@ -151,6 +172,95 @@ load_txt <- function(fp) {
 # Other Functions ---------------------------------------------------------
 
 
+# plot measurement values (normalized to abundances per sample and z-scores per 
+# measurement) present in the given LEfSe .res data, and order samples on rows
+# by group and measurements on columns by LEfSe enrichment reported.  To produce
+# a summary heatap with just "interesting" measurements, filter the lefse_data
+# beforehand, for example on LogLDAScore.
+# data: matrix of numeric values to plot.  rows are samples (should match 
+#       s_attrs$sampleID), columns observations.
+# lefse_data: a .res data frame from running LEfSe on the given data.
+# s_attrs: sample attributes data frame
+# md_var: column name in sample attributes that was used for LEfSe
+plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
+  if (! nrow(lefse_data)) {
+    warning("No LEfSe data given for heatmap filtering")
+    plot.new()
+    plot.window(c(-1, 1), c(-1, 1))
+    text(0, 0, "No LEfSe data given for heatmap filtering")
+    return(plot.new())
+  }
+  # Annotation for columns: which variable is enriched in which group?
+  anno_col <- data.frame(
+    EnrichedIn = factor(lefse_data$ClassHighestMean, levels = levels(factor(s_attrs[[md_var]]))),
+    row.names = lefse_data$Feature,
+    stringsAsFactors = FALSE
+  )
+  anno_col <- anno_col[order(anno_col$EnrichedIn), , drop = FALSE]
+  anno_col <- anno_col[rownames(anno_col) %in% colnames(data), , drop = FALSE]
+  
+  # Annotation for rows: which sample belongs in which group?
+  anno_row <- data.frame(x = factor(s_attrs[[md_var]]))
+  colnames(anno_row) <- md_var
+  rownames(anno_row) <- s_attrs$sampleID
+  anno_row <- anno_row[order(anno_row[[md_var]]), , drop=FALSE]
+  # Only keep annotation rows that are relevant for the given data
+  anno_row <- anno_row[rownames(anno_row) %in% rownames(data), , drop = FALSE]
+  # exclude NAs for md_var as well
+  anno_row <- anno_row[! is.na(anno_row[[md_var]]), , drop = FALSE]
+  
+  # Standardize the levels to a consistent set but with no empties.
+  lvls <- unique(c(as.character(anno_row[, md_var]),
+                   as.character(anno_col[, "EnrichedIn"])))
+  anno_row[[md_var]] <- factor(anno_row[[md_var]], levels = lvls)
+  anno_col[["EnrichedIn"]] <- factor(anno_col[["EnrichedIn"]], levels = lvls)
+  
+  # Normalize per sample to unit sum, and scale per value column to z-score.
+  data_norm <- t(apply(data, 1, function(row) row/sum(row)))
+  data_norm <- scale(data_norm)
+  
+  # Take only the selected rows and columns
+  data_notable <- data_norm[rownames(anno_row), rownames(anno_col), drop = FALSE]
+  
+  # Now, plot values
+  
+  # Colors: define a set of colors for each factor level in the grouping 
+  # metadata variable.  Duplicate the set so we use the same ones for the rows
+  # and columns.
+  # (TODO clean up missing levels but keep same set with rows/cols)
+  colors <- 1 + seq_along(levels(anno_row[[md_var]]))
+  names(colors) <- levels(anno_row[[md_var]])
+  annotation_colors <- list(colors, colors)
+  names(annotation_colors) <- c(md_var, "EnrichedIn")
+  
+  args <- list(mat = data_notable,
+               cluster_rows = FALSE,
+               cluster_cols = FALSE,
+               annotation_row = anno_row,
+               annotation_col = anno_col,
+               annotation_colors = annotation_colors)
+  
+  do.call(pheatmap::pheatmap, args)
+}
+
+# Wrapper for plot_heatmap_with_lefse using file paths and performing filtering
+# via LEfSe results.
+plot_heatmap_with_lefse_files <- function(weights_fp, res_fp, metadata_fp,
+                                          column_name, out_path,
+                                          lda_score_min = 3,
+                                          column_na_txt = "NA") {
+  s_attrs <- load_sample_attrs(metadata_fp)
+  weights <- load_weights_tsv(weights_fp)
+  lefse_data <- lefse_load_res(res_fp)
+  notables <- subset(lefse_data,
+                     LogLDAScore > lda_score_min &
+                       ! ClassHighestMean %in% c(column_na_txt))
+  # Found by eye that this height in inches seems to work well
+  pdf(file = out_path, width = 11, height = nrow(weights) / 6)
+  plot_heatmap_with_lefse(weights, notables, s_attrs, column_name)
+  dev.off()
+}
+
 # expand out a set of categories (pathways/modules/enzymes) and metadata
 # variables, load a .res file for each combination, and reverse the expected
 # modifications LEfSe has made to our category names.
@@ -167,17 +277,7 @@ lefse_load_res_all <- function(category_names, md_vars) {
   res_fields$Case <- with(res_fields, paste(Category, Group, sep = ":"))
   #res <- lapply(res_fields$Path, lefse_load_res)
   res <- apply(res_fields, 1, function(row) {
-    data <- lefse_load_res(row[["Path"]])
-    if (row[["Category"]] == "pathways") {
-      data$Feature <- sub("^path_", "path:", data$Feature)
-    } else if (row[["Category"]] == "modules") {
-      data$Feature <- sub("^md_", "md:", data$Feature)
-    } else if (row[["Category"]] == "enzymes") {
-      data$Feature <- gsub("_", ".", sub("^ec_", "ec:", data$Feature), fixed = TRUE)
-    } else {
-      warning("unrecognized category/feature name")
-    }
-    data
+    lefse_load_res(row[["Path"]])
   })
   names(res) <- res_fields$Case
   list(res_fields = res_fields, res = res)

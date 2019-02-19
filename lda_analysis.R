@@ -294,6 +294,8 @@ metadata_vars <- load_txt("shotgun_metadata_cols_of_interest.txt")
 res_all <- lefse_load_res_all(names(weights), metadata_vars)
 
 
+# Analysis - LEfSe Bar Plots ----------------------------------------------
+
 
 # Example: results for pathways <-> subsistence as barcharts
 plt <- lefse_plot_bars(res_all$res[["pathways:Subsistence"]])
@@ -302,82 +304,23 @@ plt <- lefse_plot_bars(res_all$res[["pathways:Subsistence"]])
 
 # Analysis - Heatmap with lefse -------------------------------------------
 
+# edge case
+plot_heatmap_with_lefse_files(
+  weights_fp = "enzymes/all_weighted_enzymes_matrix.tsv",
+  res_fp = "lefse-results/weights.enzymes.High_Pos_Crypto.res",
+  metadata_fp = "shotgun_metadata_2519.csv",
+  column_name = "High_Pos_Crypto",
+  out_path = "lefse-results/weights.enzymes.High_Pos_Crypto.heatmap.pdf")
 
-# plot measurement values (normalized to abundances per sample and z-scores per 
-# measurement) present in the given LEfSe .res data, and order samples on rows
-# by group and measurements on columns by LEfSe enrichment reported.  To produce
-# a summary heatap with just "interesting" measurements, filter the lefse_data
-# beforehand, for example on LogLDAScore.
-# data: matrix of numeric values to plot.  rows are samples (should match 
-#       s_attrs$sampleID), columns observations.
-# lefse_data: a .res data frame from running LEfSe on the given data.
-# s_attrs: sample attributes data frame
-# md_var: column name in sample attributes that was used for LEfSe
-plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
-  
-  # Annotation for columns: which variable is enriched in which group?
-  anno_col <- data.frame(
-    EnrichedIn = factor(lefse_data$ClassHighestMean, levels = levels(factor(s_attrs[[md_var]]))),
-    row.names = lefse_data$Feature,
-    stringsAsFactors = FALSE
-  )
-  anno_col <- anno_col[order(anno_col$EnrichedIn), , drop = FALSE]
-  anno_col <- anno_col[rownames(anno_col) %in% colnames(data), , drop = FALSE]
-  
-  # Annotation for rows: which sample belongs in which group?
-  anno_row <- data.frame(x = factor(s_attrs[[md_var]]))
-  colnames(anno_row) <- md_var
-  rownames(anno_row) <- s_attrs$sampleID
-  anno_row <- anno_row[order(anno_row[[md_var]]), , drop=FALSE]
-  # Only keep annotation rows that are relevant for the given data
-  anno_row <- anno_row[rownames(anno_row) %in% rownames(data), , drop = FALSE]
-  # exclude NAs for md_var as well
-  anno_row <- anno_row[! is.na(anno_row[[md_var]]), , drop = FALSE]
-  
-  # Standardize the levels to a consistent set but with no empties.
-  lvls <- unique(c(as.character(anno_row[, md_var]),
-                   as.character(anno_col[, "EnrichedIn"])))
-  anno_row[[md_var]] <- factor(anno_row[[md_var]], levels = lvls)
-  anno_col[["EnrichedIn"]] <- factor(anno_col[["EnrichedIn"]], levels = lvls)
-  
-  # Normalize per sample to unit sum, and scale per value column to z-score.
-  data_norm <- t(apply(data, 1, function(row) row/sum(row)))
-  data_norm <- scale(data_norm)
-  
-  # Take only the selected rows and columns
-  data_notable <- data_norm[rownames(anno_row), rownames(anno_col)]
-  
-  # Now, plot values
-
-  # Colors: define a set of colors for each factor level in the grouping 
-  # metadata variable.  Duplicate the set so we use the same ones for the rows
-  # and columns.
-  # (TODO clean up missing levels but keep same set with rows/cols)
-  colors <- 1 + seq_along(levels(anno_row[[md_var]]))
-  names(colors) <- levels(anno_row[[md_var]])
-  annotation_colors <- list(colors, colors)
-  names(annotation_colors) <- c(md_var, "EnrichedIn")
-
-  args <- list(mat = data_notable,
-               cluster_rows = FALSE,
-               cluster_cols = FALSE,
-               annotation_row = anno_row,
-               annotation_col = anno_col,
-               annotation_colors = annotation_colors)
-  
-  do.call(pheatmap::pheatmap, args)
-}
 
 # Based on LEfSe results, how do our raw values for pathways look?
 # Take just columns for the notable features, and rows where Subsistence is set
-notables <- subset(res_all$res[["pathways:Subsistence"]],
-                   LogLDAScore > 3 & ! ClassHighestMean %in% c("NA", "0"))
-
-# TODO double check this!!
-pdf(file = "pathways.Subsistence.pdf", width = 11, height = 30)
-plot_heatmap_with_lefse(weights$pathways, notables, s_attrs, "Subsistence")
-#plot(result$gtable)
-dev.off()
+# notables <- subset(res_all$res[["pathways:Subsistence"]],
+#                    LogLDAScore > 3 & ! ClassHighestMean %in% c("NA"))
+# 
+# pdf(file = "pathways.Subsistence.pdf", width = 11, height = 30)
+# plot_heatmap_with_lefse(weights$pathways, notables, s_attrs, "Subsistence")
+# dev.off()
 
 
 # Analysis - Custom -------------------------------------------------------
