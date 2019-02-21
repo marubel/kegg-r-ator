@@ -74,9 +74,12 @@ lefse_plot_bars <- function(data) {
 # sample metadata, and a column name to use from the sample metadata, and create
 # a combined TSV file that LEfSe/format_input.py will understand.  Currently
 # supports just one class, no subclass.
+# If all the class values end up being the same, an empty file is written, to
+# signal that lefse should be skipped for this case.
 # weights_fp: path to weighted matrix file
 # metadata_fp: path to CSV sample attributes file
-# column_name: name of column in metadata_fp to use as LEfSe class
+# column_name: name of column in metadata_fp to use as LEfSe class.  If NULL,
+# samples with NA for their metadata value are removed.
 # column_name_txt: what should NA values become in the column named above?
 # out_path: output file path
 prepare_lefse_input <- function(weights_fp,
@@ -99,14 +102,26 @@ prepare_lefse_input <- function(weights_fp,
   )
   # Set column names
   colnames(lefse_metadata) <- c(sample_id_name, column_name)
-  # Substitute NA values in the grouping column
+  # Substitute NA values in the grouping column, or remove NA entries entirely
   idxl <- is.na(lefse_metadata[[column_name]])
-  lefse_metadata[[column_name]][idxl] <- column_na_txt
-  # Combine and transpose all the information, so metadata is the first few rows
-  # and measurements are the rows that follow
-  combo <- rbind(t(lefse_metadata), t(weights))
+  if (is.null(column_na_txt)) {
+    # remove entire rows (both metadata and weights) that had NA values for
+    # column_name
+    lefse_metadata <- lefse_metadata[! idxl, ]
+    weights <- weights[! idxl, ]
+    combo <- rbind(t(lefse_metadata), t(weights))
+  } else {
+    lefse_metadata[[column_name]][idxl] <- column_na_txt
+    # Combine and transpose all the information, so metadata is the first few rows
+    # and measurements are the rows that follow
+    combo <- rbind(t(lefse_metadata), t(weights))
+  }
   if (! is.null(out_path)) {
-    save_lefse_input(combo, out_path)
+    if (length(unique(lefse_metadata[[column_name]])) == 1) {
+      cat("", file = out_path)
+    } else {
+      save_lefse_input(combo, out_path)
+    }
   }
   return(combo)
 }
@@ -227,7 +242,6 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
   # Colors: define a set of colors for each factor level in the grouping 
   # metadata variable.  Duplicate the set so we use the same ones for the rows
   # and columns.
-  # (TODO clean up missing levels but keep same set with rows/cols)
   colors <- 1 + seq_along(levels(anno_row[[md_var]]))
   names(colors) <- levels(anno_row[[md_var]])
   annotation_colors <- list(colors, colors)
