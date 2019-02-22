@@ -40,8 +40,15 @@ TARGET_LEFSE = expand("lefse-results/weights.{category}.{group}.res",
     category = ["pathways", "enzymes", "modules"],
     group = MD_COLS_LEFSE)
 
+TARGET_LEFSE_HEATMAPS = expand("lefse-results/weights.{category}.{group}.heatmap.pdf",
+    category = ["pathways", "enzymes", "modules"],
+    group = MD_COLS_LEFSE)
+
 rule all_lefse:
     input: TARGET_LEFSE
+
+rule all_lefse_heatmaps:
+    input: TARGET_LEFSE_HEATMAPS
 
 ##############################################################################
 
