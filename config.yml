@@ -1,0 +1,40 @@
+# custom colors for factors of specific names.  Each name consists of a
+# dictionary of level name / color string pairs.
+level_colors:
+  Population:
+    Bantu: "#ffcc99"
+    Mbororo_Fulani: "#999FFF"
+    Bagyeli: "#a9315c"
+    USA: "#001d73"
+    Baka: "#f58aa5"
+  Subsistence:
+    Agropastoralist: "#ffcc99"
+    Pastoralist: "#999FFF"
+    Hunter-Gatherer: "#993366"
+    Industrial_Agropastoralist: "#001d73"
+
+# These are the notable metadata variables that Meagan identified
+metadata_cols_of_interest:
+  - "Sex"
+  - "Subsistence"
+  - "Sampling.Site"
+  - "Total_ANTS"
+  - "Population"
+  - "HIV_positive_combokitresult"
+  - "PosOrNeg_Ascaris"
+  - "PosOrNeg_Entamoeba"
+  - "PosOrNeg_Giardia"
+  - "PosOrNeg_Necator"
+  - "PosOrNeg_Strongyloides"
+  - "PosOrNeg_Trichuris"
+  - "PosOrNeg_PanCrypto"
+  - "PosOrNeg_Ancylostoma"
+  - "High_Pos_Ascaris"
+  - "High_Pos_Entamoeba"
+  - "High_Pos_Giardia"
+  - "High_Pos_Necator"
+  - "High_Pos_Strongyloides"
+  - "High_Pos_Trichuris"
+  - "High_Pos_Ancylostoma"
+  - "High_Pos_Crypto"
+  - "ants_binary"
