@@ -2,7 +2,7 @@
 # These are functions that help manage input/output for LEfSe.
 #
 
-pkgs <- c("ggplot2", "pheatmap")
+pkgs <- c("ggplot2", "pheatmap", "yaml")
 notloaded <- ! sapply(pkgs, require, character.only = TRUE, quietly = TRUE)
 if (sum(notloaded)) {
   install.packages(pkgs[notloaded])
@@ -29,6 +29,9 @@ if (sum(notloaded)) {
 # 101     outres['cls_means_kord'] = kord
 # 102     outres['wilcox_res'] = wilcoxon_res
 lefse_load_res <- function(fp) {
+  if (file.size(fp) == 0) {
+    return(NULL)
+  }
   data <- read.table(fp, sep="\t", header = FALSE, stringsAsFactors = FALSE, na.strings = c("", "-"))
   colnames(data) <- c("Feature", "LogHighestMean", "ClassHighestMean", "LogLDAScore", "WilcoxRes")
   data$Feature <- lefse_unmangle_features(data$Feature)
@@ -183,6 +186,22 @@ load_txt <- function(fp) {
   data
 }
 
+load_var_names <- function(fp) {
+  # Handle empty-file case automatically
+  if (file.size(fp) == 0) {
+    data <- NULL
+  } else {
+    data <- data.table::fread(fp, col.names = c("VarID", "VarName"))
+    data <- as.data.frame(data)
+    rownames(data) <- data$VarID
+  }
+  data
+}
+
+load_config <- function(fp) {
+  yaml::read_yaml(fp)
+}
+
 
 # Other Functions ---------------------------------------------------------
 
@@ -197,14 +216,34 @@ load_txt <- function(fp) {
 # lefse_data: a .res data frame from running LEfSe on the given data.
 # s_attrs: sample attributes data frame
 # md_var: column name in sample attributes that was used for LEfSe
-plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
-  if (! nrow(lefse_data)) {
+# grp_colors: optional mapping of values to color strings for md_var
+# var_names: optional data frame of substitutions for specific values in
+# colnames of data and lefse_data$Feature
+plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var,
+                                    grp_colors = NULL, var_names = NULL) {
+  if (is.null(lefse_data) || nrow(lefse_data) == 0) {
     warning("No LEfSe data given for heatmap filtering")
     plot.new()
     plot.window(c(-1, 1), c(-1, 1))
     text(0, 0, "No LEfSe data given for heatmap filtering")
     return(plot.new())
   }
+
+  # If custom variable names were given, subsitute those in for both the Feature
+  # column of lefse_data and column names in the data matrix.
+  if (! is.null(var_names)) {
+    idx <- match(lefse_data$Feature, var_names$VarID)
+    lefse_data$Feature <- ifelse(
+      is.na(idx),
+      lefse_data$Feature,
+      var_names$VarName[idx])
+    idx <- match(colnames(data), var_names$VarID)
+    colnames(data) <- ifelse(
+      is.na(idx),
+      colnames(data),
+      var_names$VarName[idx])
+  }
+
   # Annotation for columns: which variable is enriched in which group?
   anno_col <- data.frame(
     EnrichedIn = factor(lefse_data$ClassHighestMean, levels = levels(factor(s_attrs[[md_var]]))),
@@ -242,7 +281,21 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
   # Colors: define a set of colors for each factor level in the grouping 
   # metadata variable.  Duplicate the set so we use the same ones for the rows
   # and columns.
-  colors <- 1 + seq_along(levels(anno_row[[md_var]]))
+
+  # If a color mapping list was given, see if the md_var given is present, and
+  # if so, use the named colors.
+  if (! is.null(grp_colors)) {
+    colors <- grp_colors[levels(anno_row[[md_var]])]
+    if (any(is.na(colors))) {
+      idxl <- ! levels(anno_row[[md_var]]) %in% names(grp_colors)
+      missings <- levels(anno_row[[md_var]])[idxl]
+      stop(paste("missing color definitions for",
+                 md_var,
+                 ":", paste(missings, sep = ", ")))
+    }
+  } else {
+    colors <- 1 + seq_along(levels(anno_row[[md_var]]))
+  }
   names(colors) <- levels(anno_row[[md_var]])
   annotation_colors <- list(colors, colors)
   names(annotation_colors) <- c(md_var, "EnrichedIn")
@@ -259,19 +312,59 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var) {
 
 # Wrapper for plot_heatmap_with_lefse using file paths and performing filtering
 # via LEfSe results.
+# weights_fp: path to TSV matrix of observations
+# res_fp: path to TSV LEfSe results file
+# metadata_fp: path to CSV file with sample metadata
+# column_name: sample metadata column to use for groupings
+# out_path: path to output PDF file
+# lda_score_min: minimum LogLDAScore in LEfSe results for variables to keep
+# config_fp: path to YAML configuration file; used for grouping colors
+# var_names_fp: path to TSV mapping of variable IDs to long names
+# column_na_txt: value to filter out for ClassHighestMean in LEfSe results
 plot_heatmap_with_lefse_files <- function(weights_fp, res_fp, metadata_fp,
                                           column_name, out_path,
                                           lda_score_min = 3,
+                                          config_fp = NULL,
+                                          var_names_fp = NULL,
                                           column_na_txt = "NA") {
+  # If config was given, try to find a color mapping to use
+  if (! is.null(config_fp)) {
+    config <- load_config(config_fp)
+    grp_colors <- config[["level_colors"]][[column_name]]
+    # turn into named vector instead of list
+    vecnames <- names(grp_colors)
+    grp_colors <- as.character(grp_colors)
+    names(grp_colors) <- vecnames
+    if (length(grp_colors) == 0) {
+      grp_colors <- NULL
+    }
+  } else {
+    grp_colors <- NULL
+  }
+  # If var_names were given, apply the mapping to use more descriptive names.
+  if (! is.null(var_names_fp)) {
+    var_names <- load_var_names(var_names_fp)
+  } else {
+    var_names <- NULL
+  }
   s_attrs <- load_sample_attrs(metadata_fp)
   weights <- load_weights_tsv(weights_fp)
   lefse_data <- lefse_load_res(res_fp)
-  notables <- subset(lefse_data,
-                     LogLDAScore > lda_score_min &
-                       ! ClassHighestMean %in% c(column_na_txt))
+  if (is.null(lefse_data)) {
+    notables <- NULL
+  } else {
+    notables <- subset(lefse_data,
+                       LogLDAScore > lda_score_min &
+                         ! ClassHighestMean %in% c(column_na_txt))
+  }
   # Found by eye that this height in inches seems to work well
   pdf(file = out_path, width = 11, height = nrow(weights) / 6)
-  plot_heatmap_with_lefse(weights, notables, s_attrs, column_name)
+  plot_heatmap_with_lefse(data = weights,
+                          lefse_data = notables,
+                          s_attrs = s_attrs,
+                          md_var = column_name,
+                          grp_colors = grp_colors,
+                          var_names = var_names)
   dev.off()
 }
 

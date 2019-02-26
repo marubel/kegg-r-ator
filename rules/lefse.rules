@@ -57,16 +57,31 @@ rule all_lefse_heatmaps:
 # we'll just shuttle along the empty file as a marker.
 # These aren't really lefse-specific but I'm storing them here for the time
 # being.
+
+# prefix to use for variable names for each category
+names_mapping = {
+    "pathways": "path:map",
+    "enzymes": "",
+    "modules": "md:"
+    }
+
 rule names_parsed_filtered:
     output:
         names="{category}/{category}_parsed_filtered.tsv"
     input:
         matrix="{category}/all_weighted_{category}_matrix.tsv",
         names="{category}_parsed.tsv"
+    params:
+        sub = lambda w: names_mapping[w.category]
     shell:
         """
             if [[ -s {input.names} ]]; then
-                grep -f <(cut -f 1 {input.matrix} | tail -n +2 | sed -r 's/^[A-Za-z]+:[a-z]*/^/;s/$/\\t/') {input.names} > {output.names}
+                grep -f \
+                    <(cut -f 1 {input.matrix} | \
+                    tail -n +2 | \
+                    sed -r 's/^/^/;s/$/\\t/') \
+                    <(sed -r 's/^/{params.sub}/' {input.names}) \
+                    > {output.names}
             else
                 touch {output.names}
             fi
@@ -89,6 +104,8 @@ rule plot_heatmap_with_lefse:
     input:
         data="{category}/all_weighted_{category}_matrix.tsv",
         metadata="shotgun_metadata_2519.csv",
+        var_names="{category}/{category}_parsed_filtered.tsv",
+        config=str(PATH_CONFIG),
         res="lefse-results/weights.{category}.{group}.res"
     params:
         lda_score_min=3,
@@ -106,6 +123,8 @@ rule plot_heatmap_with_lefse:
               column_name = "{wildcards.group}",
               out_path = "{output.pdf}",
               lda_score_min = {params.lda_score_min},
+              config_fp = "{input.config}",
+              var_names_fp = "{input.var_names}",
               column_na_txt = "{params.column_na_txt}")
             """)
 
