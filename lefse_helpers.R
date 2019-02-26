@@ -177,15 +177,6 @@ load_sample_attrs <- function(fp) {
   data
 }
 
-# load a simple list of terms from a text file into a character vector.
-load_txt <- function(fp) {
-  data <- read.csv(fp,
-                   header = FALSE,
-                   stringsAsFactors = FALSE)[, 1]
-  names(data) <- data
-  data
-}
-
 load_var_names <- function(fp) {
   # Handle empty-file case automatically
   if (file.size(fp) == 0) {

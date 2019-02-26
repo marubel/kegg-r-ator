@@ -216,7 +216,7 @@ weights <- list(
 
 # These are metadata variables Meagan is particularly interested in evaluating
 # with LEfSe.
-metadata_vars <- load_txt("shotgun_metadata_cols_of_interest.txt")
+metadata_vars <- load_config("config.yml")[["metadata_cols_of_interest"]]
 
 # A list of two things: a data frame of info on what we ran LEfSe on, and a big
 # ol' list of output data frames for each case.  I've kept these separate for
