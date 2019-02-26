@@ -12,6 +12,16 @@ level_colors:
     Pastoralist: "#999FFF"
     Hunter-Gatherer: "#993366"
     Industrial_Agropastoralist: "#001d73"
+  Sampling.Site:
+    Aviation: "#7d6d00"
+    Bidou_I: "#1f47c9"
+    Bosquet: "#abd464"
+    Missoume: "#c00097"
+    Ndtoua: "#006d13"
+    Njibot: "#b087ff"
+    Nkolbikong: "#ff545b"
+    Ntambang: "#00b7e8"
+    Sabga: "#624098"
 
 # sampleID will be mapped to this metadata column for display purposes
 label_samples_by: "LabID"
