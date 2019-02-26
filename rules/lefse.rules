@@ -23,6 +23,7 @@ when loading the data back into R afterwards.
 """
 
 from pathlib import Path
+import yaml
 PATH_LEFSE = Path("LEfSe").resolve()
 
 # We're using entries for a text file for the "group" wildcard which has a few
@@ -32,23 +33,44 @@ wildcard_constraints:
     category="[A-Za-z]+",
     group="[A-Za-z_]+\\.?[A-Za-z_]+"
 
-# These are the notable metadata variables that Meagan identified
-with open("shotgun_metadata_cols_of_interest.txt") as f:
-    MD_COLS_LEFSE = [line.strip() for line in f.readlines()]
+# Various configuration settings for the analysis
+PATH_CONFIG = Path("config.yml").resolve()
+with open(PATH_CONFIG) as f:
+    CONFIG = yaml.safe_load(f)
 
 TARGET_LEFSE = expand("lefse-results/weights.{category}.{group}.res",
     category = ["pathways", "enzymes", "modules"],
-    group = MD_COLS_LEFSE)
+    group = CONFIG["metadata_cols_of_interest"])
 
 TARGET_LEFSE_HEATMAPS = expand("lefse-results/weights.{category}.{group}.heatmap.pdf",
     category = ["pathways", "enzymes", "modules"],
-    group = MD_COLS_LEFSE)
+    group = CONFIG["metadata_cols_of_interest"])
 
 rule all_lefse:
     input: TARGET_LEFSE
 
 rule all_lefse_heatmaps:
     input: TARGET_LEFSE_HEATMAPS
+
+# Filter the huge tables of IDs to names down to just those needed for our
+# analysis.  Empty input file signifies no mapping available in which case
+# we'll just shuttle along the empty file as a marker.
+# These aren't really lefse-specific but I'm storing them here for the time
+# being.
+rule names_parsed_filtered:
+    output:
+        names="{category}/{category}_parsed_filtered.tsv"
+    input:
+        matrix="{category}/all_weighted_{category}_matrix.tsv",
+        names="{category}_parsed.tsv"
+    shell:
+        """
+            if [[ -s {input.names} ]]; then
+                grep -f <(cut -f 1 {input.matrix} | tail -n +2 | sed -r 's/^[A-Za-z]+:[a-z]*/^/;s/$/\\t/') {input.names} > {output.names}
+            else
+                touch {output.names}
+            fi
+        """
 
 ##############################################################################
 
@@ -71,6 +93,10 @@ rule plot_heatmap_with_lefse:
     params:
         lda_score_min=3,
         column_na_txt="NA"
+    # TODO
+    #  * provide the names mapping file as an input (note, may be empty)
+    #  * provide the config YAML as an input for the colors
+    #  * expand the R code to use names and/or colors if available
     run: R("""
             source("lefse_helpers.R")
             plot_heatmap_with_lefse_files(
