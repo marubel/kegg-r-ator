@@ -13,6 +13,9 @@ level_colors:
     Hunter-Gatherer: "#993366"
     Industrial_Agropastoralist: "#001d73"
 
+# sampleID will be mapped to this metadata column for display purposes
+label_samples_by: "LabID"
+
 # These are the notable metadata variables that Meagan identified
 metadata_cols_of_interest:
   - "Sex"

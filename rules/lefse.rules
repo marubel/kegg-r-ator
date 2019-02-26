@@ -109,7 +109,7 @@ rule plot_heatmap_with_lefse:
         res="lefse-results/weights.{category}.{group}.res"
     params:
         lda_score_min=3,
-        sample_name_var="LabID",
+        sample_name_var=CONFIG["label_samples_by"],
         column_na_txt="NA"
     run: R("""
             source("lefse_helpers.R")
