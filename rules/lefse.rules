@@ -109,11 +109,8 @@ rule plot_heatmap_with_lefse:
         res="lefse-results/weights.{category}.{group}.res"
     params:
         lda_score_min=3,
+        sample_name_var="LabID",
         column_na_txt="NA"
-    # TODO
-    #  * provide the names mapping file as an input (note, may be empty)
-    #  * provide the config YAML as an input for the colors
-    #  * expand the R code to use names and/or colors if available
     run: R("""
             source("lefse_helpers.R")
             plot_heatmap_with_lefse_files(
@@ -125,6 +122,7 @@ rule plot_heatmap_with_lefse:
               lda_score_min = {params.lda_score_min},
               config_fp = "{input.config}",
               var_names_fp = "{input.var_names}",
+              sample_name_var = "{params.sample_name_var}",
               column_na_txt = "{params.column_na_txt}")
             """)
 

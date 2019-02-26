@@ -210,8 +210,10 @@ load_config <- function(fp) {
 # grp_colors: optional mapping of values to color strings for md_var
 # var_names: optional data frame of substitutions for specific values in
 # colnames of data and lefse_data$Feature
+# sample_name_var: column of s_attrs to use for labeling rows
 plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var,
-                                    grp_colors = NULL, var_names = NULL) {
+                                    grp_colors = NULL, var_names = NULL,
+                                    sample_name_var = "sampleID") {
   if (is.null(lefse_data) || nrow(lefse_data) == 0) {
     warning("No LEfSe data given for heatmap filtering")
     plot.new()
@@ -219,6 +221,20 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var,
     text(0, 0, "No LEfSe data given for heatmap filtering")
     return(plot.new())
   }
+
+  # Map rownames of data matrix to sample metadata via sampleID, and update with
+  # sample_name_var.  (If "sampleID", nothing will change.)  We'll be paranoid
+  # and make sure we have a unique set of non-NA values here.
+  idx <- match(rownames(data), s_attrs[["sampleID"]])
+  sample_names <- as.character(s_attrs[[sample_name_var]][idx])
+  if (any(is.na(sample_names))) {
+    warning(paste("missing sample names from", sample_name_var, "column"))
+  }
+  wo_na <- sample_names[! is.na(sample_names)]
+  if (length(unique(wo_na)) != length(wo_na)) {
+    stop(paste("Duplicate sample names from", sample_name_var, "column"))
+  }
+  rownames(data)[! is.na(sample_names)] <- sample_names[! is.na(sample_names)]
 
   # If custom variable names were given, subsitute those in for both the Feature
   # column of lefse_data and column names in the data matrix.
@@ -247,7 +263,10 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var,
   # Annotation for rows: which sample belongs in which group?
   anno_row <- data.frame(x = factor(s_attrs[[md_var]]))
   colnames(anno_row) <- md_var
-  rownames(anno_row) <- s_attrs$sampleID
+  sample_names_all <- as.character(s_attrs[[sample_name_var]])
+  rownames(anno_row) <- ifelse(is.na(sample_names_all),
+                               rownames(anno_row),
+                               sample_names_all)
   anno_row <- anno_row[order(anno_row[[md_var]]), , drop=FALSE]
   # Only keep annotation rows that are relevant for the given data
   anno_row <- anno_row[rownames(anno_row) %in% rownames(data), , drop = FALSE]
@@ -311,12 +330,14 @@ plot_heatmap_with_lefse <- function(data, lefse_data, s_attrs, md_var,
 # lda_score_min: minimum LogLDAScore in LEfSe results for variables to keep
 # config_fp: path to YAML configuration file; used for grouping colors
 # var_names_fp: path to TSV mapping of variable IDs to long names
+# sample_name_var: column of s_attrs to use for labeling rows
 # column_na_txt: value to filter out for ClassHighestMean in LEfSe results
 plot_heatmap_with_lefse_files <- function(weights_fp, res_fp, metadata_fp,
                                           column_name, out_path,
                                           lda_score_min = 3,
                                           config_fp = NULL,
                                           var_names_fp = NULL,
+                                          sample_name_var = "sampleID",
                                           column_na_txt = "NA") {
   # If config was given, try to find a color mapping to use
   if (! is.null(config_fp)) {
@@ -355,7 +376,8 @@ plot_heatmap_with_lefse_files <- function(weights_fp, res_fp, metadata_fp,
                           s_attrs = s_attrs,
                           md_var = column_name,
                           grp_colors = grp_colors,
-                          var_names = var_names)
+                          var_names = var_names,
+                          sample_name_var = sample_name_var)
   dev.off()
 }
 
