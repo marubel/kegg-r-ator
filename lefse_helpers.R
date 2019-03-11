@@ -182,7 +182,9 @@ load_var_names <- function(fp) {
   if (file.size(fp) == 0) {
     data <- NULL
   } else {
-    data <- data.table::fread(fp, col.names = c("VarID", "VarName"))
+    data <- data.table::fread(fp,
+                              col.names = c("VarID", "VarName"),
+                              header = FALSE)
     data <- as.data.frame(data)
     rownames(data) <- data$VarID
   }
