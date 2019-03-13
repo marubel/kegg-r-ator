@@ -6,7 +6,7 @@ Automate annotation and visualizations in [R] with [KEGG].
 
 ## Introduction
 
-KEGG-R-ator is a [Sunbeam](https://github.com/sunbeam-labs/sunbeam) extension written in [snakemake] (http://snakemake.readthedocs.io) that creates and aligns a DIAMOND-built database of metagenomic reads to KEGG, builds output files for KEGG enzymes, modules, and pathways, and visualizes the results. KEGG-R-ator uses [conda](http://condo.io) to manage dependencies. 
+KEGG-R-ator is a [Sunbeam](https://github.com/sunbeam-labs/sunbeam) extension written in [snakemake](http://snakemake.readthedocs.io) that creates and aligns a DIAMOND-built database of metagenomic reads to KEGG, builds output files for KEGG enzymes, modules, and pathways, and visualizes the results. KEGG-R-ator uses [conda](http://condo.io) to manage dependencies. 
 
 Specifically, KEGG-R-ator automates the following tasks: 
 * [sbx_gene_clusters](https://github.com/sunbeam-labs/sbx_gene_clusters) is used to make a   blastdb from merged, paired-end reads using Diamond and a fasta file of reference   
