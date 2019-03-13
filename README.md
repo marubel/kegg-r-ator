@@ -1,25 +1,9 @@
 # KEGG to R annotatOR (KEGG-R-ator) 
-Automate stuff in [R] with [KEGG].
+Automate annotation and visualizations in [R] with [KEGG].
 
 [R]: https://www.r-project.org
 [KEGG]: https://www.kegg.jp
----
-title: "Keggrator_README.rmd"
-author: "MAR"
-date: "3/13/2019"
-output: 
-  html_document:
-    keep_md: yes
-    toc: yes  
----
 
-```{r setup, echo=FALSE, message=FALSE}
-knitr::opts_chunk$set(
-  fig.retina=2,
-  fig.width=6,
-  fig.height=4
-)
-```
 ## Introduction
 
 KEGG-R-ator is a [Sunbeam](https://github.com/sunbeam-labs/sunbeam) extension written in [snakemake] (http://snakemake.readthedocs.io) that creates and aligns a DIAMOND-built database of metagenomic reads to KEGG, builds output files for KEGG enzymes, modules, and pathways, and visualizes the results. KEGG-R-ator uses [conda](http://condo.io) to manage dependencies. 
