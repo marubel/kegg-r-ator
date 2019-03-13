@@ -20,6 +20,6 @@ KEGG-R-ator output can be used to generate heatmaps of differentially enriched p
 
 ------
 ### Contributors 
-Meagan Rubel ([@marubel](https://github.com/marubel)
+Meagan Rubel ([@marubel](https://github.com/marubel))
 Jesse Connell ([@ressy](https://github.com/ressy))
 Louis Taylor ([@louiejtaylor](https://github.com/louiejtaylor))
